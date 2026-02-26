@@ -1,0 +1,30 @@
+[general]
+nick = "opentui-user"
+username = "opentui"
+realname = "OpenTUI IRC Client"
+theme = "default"
+timestamp_format = "%H:%M:%S"
+
+[display]
+nick_column_width = 8
+nick_max_length = 8
+nick_alignment = "right"
+nick_truncation = true
+show_timestamps = true
+scrollback_lines = 2000
+
+[sidepanel.left]
+width = 20
+visible = true
+
+[sidepanel.right]
+width = 18
+visible = true
+
+# [servers.libera]
+# label = "Libera"
+# address = "irc.libera.chat"
+# port = 6697
+# tls = true
+# autoconnect = true
+# channels = ["#opentui"]
