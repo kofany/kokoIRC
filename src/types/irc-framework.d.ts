@@ -10,6 +10,7 @@ declare module "irc-framework" {
     action(target: string, message: string): void
     raw(rawLine: string): void
     changeNick(nick: string): void
+    setTopic(channel: string, topic: string): void
     on(event: string, handler: (...args: any[]) => void): void
     off(event: string, handler: (...args: any[]) => void): void
     user: {
