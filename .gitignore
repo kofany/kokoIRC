@@ -1,0 +1,32 @@
+node_modules/
+dist/
+out/
+*.tgz
+coverage/
+*.lcov
+
+# logs
+logs/
+*.log
+
+# dotenv
+.env
+.env.development.local
+.env.test.local
+.env.production.local
+.env.local
+
+# caches
+.eslintcache
+.cache
+*.tsbuildinfo
+
+# databases
+*.db
+
+# IDEs
+.idea/
+.cursor/
+
+# OS
+.DS_Store
