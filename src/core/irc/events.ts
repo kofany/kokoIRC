@@ -2,6 +2,10 @@ import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
 import type { Message } from "@/types"
 
+function isChannelTarget(target: string): boolean {
+  return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
+}
+
 export function bindEvents(client: any, connectionId: string) {
   const getStore = () => useStore.getState()
 
@@ -76,14 +80,15 @@ export function bindEvents(client: any, connectionId: string) {
 
   client.on("quit", (event: any) => {
     const s = getStore()
-    // Remove nick from all channel buffers of this connection
-    for (const [id, buf] of s.buffers) {
-      if (buf.connectionId === connectionId && buf.users.has(event.nick)) {
-        s.removeNick(id, event.nick)
-        s.addMessage(id, makeEventMessage(
-          `${event.nick} has quit (${event.message || ""})`
-        ))
-      }
+    const affected = Array.from(s.buffers.entries())
+      .filter(([_, buf]) => buf.connectionId === connectionId && buf.users.has(event.nick))
+      .map(([id]) => id)
+
+    for (const id of affected) {
+      getStore().removeNick(id, event.nick)
+      getStore().addMessage(id, makeEventMessage(
+        `${event.nick} has quit (${event.message || ""})`
+      ))
     }
   })
 
@@ -106,7 +111,7 @@ export function bindEvents(client: any, connectionId: string) {
 
   client.on("privmsg", (event: any) => {
     const s = getStore()
-    const isChannel = event.target.startsWith("#") || event.target.startsWith("&") || event.target.startsWith("+") || event.target.startsWith("!")
+    const isChannel = isChannelTarget(event.target)
     const bufferName = isChannel ? event.target : event.nick
     const bufferId = makeBufferId(connectionId, bufferName)
 
@@ -152,7 +157,7 @@ export function bindEvents(client: any, connectionId: string) {
 
   client.on("action", (event: any) => {
     const s = getStore()
-    const isChannel = event.target.startsWith("#") || event.target.startsWith("&")
+    const isChannel = isChannelTarget(event.target)
     const bufferName = isChannel ? event.target : event.nick
     const bufferId = makeBufferId(connectionId, bufferName)
 
@@ -204,29 +209,26 @@ export function bindEvents(client: any, connectionId: string) {
 
     // If it's us, update connection nick
     if (event.nick === conn?.nick) {
-      s.updateConnection(connectionId, { nick: event.new_nick })
+      getStore().updateConnection(connectionId, { nick: event.new_nick })
     }
 
-    // Update nick in all buffers
-    for (const [id, buf] of s.buffers) {
-      if (buf.connectionId === connectionId && buf.users.has(event.nick)) {
-        s.updateNick(id, event.nick, event.new_nick)
-        s.addMessage(id, makeEventMessage(`${event.nick} is now known as ${event.new_nick}`))
-      }
+    // Collect affected buffer IDs first, then mutate with fresh state
+    const affected = Array.from(s.buffers.entries())
+      .filter(([_, buf]) => buf.connectionId === connectionId && buf.users.has(event.nick))
+      .map(([id]) => id)
+
+    for (const id of affected) {
+      getStore().updateNick(id, event.nick, event.new_nick)
+      getStore().addMessage(id, makeEventMessage(`${event.nick} is now known as ${event.new_nick}`))
     }
   })
 
   client.on("topic", (event: any) => {
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
-    const buf = s.buffers.get(bufferId)
-    if (buf) {
-      const buffers = new Map(s.buffers)
-      buffers.set(bufferId, { ...buf, topic: event.topic, topicSetBy: event.nick })
-      useStore.setState({ buffers })
-    }
+    s.updateBufferTopic(bufferId, event.topic, event.nick)
     if (event.nick) {
-      s.addMessage(bufferId, makeEventMessage(`Topic set by ${event.nick}: ${event.topic}`))
+      getStore().addMessage(bufferId, makeEventMessage(`Topic set by ${event.nick}: ${event.topic}`))
     }
   })
 

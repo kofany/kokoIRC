@@ -14,6 +14,7 @@ export function BufferList() {
   const activeBufferId = useStore((s) => s.activeBufferId)
   const theme = useStore((s) => s.theme)
   const setActiveBuffer = useStore((s) => s.setActiveBuffer)
+  const leftWidth = useStore((s) => s.config?.sidepanel.left.width ?? 20)
 
   let lastConnectionId = ""
   let refNum = 0
@@ -43,7 +44,7 @@ export function BufferList() {
           : `item_activity_${buf.activity}`
         const format = theme?.formats.sidepanel[formatKey] ?? "$0. $1"
         const resolved = resolveAbstractions(format, theme?.abstracts ?? {})
-        const maxLen = (useStore.getState().config?.sidepanel.left.width ?? 20) - 4
+        const maxLen = leftWidth - 4
         const displayName = buf.name.length > maxLen ? buf.name.slice(0, maxLen - 1) + "\u2026" : buf.name
         const spans = parseFormatString(resolved, [String(refNum), displayName])
 

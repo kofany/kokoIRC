@@ -30,6 +30,9 @@ interface AppState {
   removeNick: (bufferId: string, nick: string) => void
   updateNick: (bufferId: string, oldNick: string, newNick: string, prefix?: string) => void
 
+  // Buffer topic
+  updateBufferTopic: (bufferId: string, topic: string, setBy?: string) => void
+
   // Config/Theme
   setConfig: (config: AppConfig) => void
   setTheme: (theme: ThemeFile) => void
@@ -135,6 +138,14 @@ export const useStore = create<AppState>((set, get) => ({
       users.set(newNick, { ...existing, nick: newNick, prefix: prefix ?? existing.prefix })
     }
     buffers.set(bufferId, { ...buf, users })
+    return { buffers }
+  }),
+
+  updateBufferTopic: (bufferId, topic, setBy) => set((s) => {
+    const buffers = new Map(s.buffers)
+    const buf = buffers.get(bufferId)
+    if (!buf) return s
+    buffers.set(bufferId, { ...buf, topic, topicSetBy: setBy })
     return { buffers }
   }),
 
