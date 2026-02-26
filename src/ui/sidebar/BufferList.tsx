@@ -1,20 +1,24 @@
+import { useMemo } from "react"
 import { useStore } from "@/core/state/store"
 import { sortBuffers } from "@/core/state/sorting"
 import { resolveAbstractions, parseFormatString } from "@/core/theme"
 import { StyledText } from "@/core/theme"
 
 export function BufferList() {
-  const buffers = useStore((s) => {
-    const list = Array.from(s.buffers.values()).map((buf) => ({
-      ...buf,
-      connectionLabel: s.connections.get(buf.connectionId)?.label ?? buf.connectionId,
-    }))
-    return sortBuffers(list)
-  })
+  const buffersMap = useStore((s) => s.buffers)
+  const connectionsMap = useStore((s) => s.connections)
   const activeBufferId = useStore((s) => s.activeBufferId)
   const theme = useStore((s) => s.theme)
   const setActiveBuffer = useStore((s) => s.setActiveBuffer)
   const leftWidth = useStore((s) => s.config?.sidepanel.left.width ?? 20)
+
+  const buffers = useMemo(() => {
+    const list = Array.from(buffersMap.values()).map((buf) => ({
+      ...buf,
+      connectionLabel: connectionsMap.get(buf.connectionId)?.label ?? buf.connectionId,
+    }))
+    return sortBuffers(list)
+  }, [buffersMap, connectionsMap])
 
   let lastConnectionId = ""
   let refNum = 0

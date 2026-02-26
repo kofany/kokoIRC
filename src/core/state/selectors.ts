@@ -1,30 +1,35 @@
+import { useMemo } from "react"
 import { useStore } from "./store"
 import { sortBuffers, sortNicks } from "./sorting"
 import type { Buffer, NickEntry } from "@/types"
 
 export function useActiveBuffer(): Buffer | null {
-  return useStore((s) => {
-    if (!s.activeBufferId) return null
-    return s.buffers.get(s.activeBufferId) ?? null
-  })
+  const activeBufferId = useStore((s) => s.activeBufferId)
+  const buffersMap = useStore((s) => s.buffers)
+  return activeBufferId ? buffersMap.get(activeBufferId) ?? null : null
 }
 
 export function useSortedBuffers(): Array<Buffer & { connectionLabel: string }> {
-  return useStore((s) => {
-    const list = Array.from(s.buffers.values()).map((buf) => ({
+  const buffersMap = useStore((s) => s.buffers)
+  const connectionsMap = useStore((s) => s.connections)
+  return useMemo(() => {
+    const list = Array.from(buffersMap.values()).map((buf) => ({
       ...buf,
-      connectionLabel: s.connections.get(buf.connectionId)?.label ?? buf.connectionId,
+      connectionLabel: connectionsMap.get(buf.connectionId)?.label ?? buf.connectionId,
     }))
     return sortBuffers(list)
-  })
+  }, [buffersMap, connectionsMap])
 }
 
+const EMPTY_NICKS: NickEntry[] = []
+
 export function useSortedNicks(bufferId: string, prefixOrder: string): NickEntry[] {
-  return useStore((s) => {
-    const buf = s.buffers.get(bufferId)
-    if (!buf) return []
-    return sortNicks(Array.from(buf.users.values()), prefixOrder)
-  })
+  const buffersMap = useStore((s) => s.buffers)
+  const buffer = buffersMap.get(bufferId)
+  return useMemo(() => {
+    if (!buffer) return EMPTY_NICKS
+    return sortNicks(Array.from(buffer.users.values()), prefixOrder)
+  }, [buffer, prefixOrder])
 }
 
 export function useConnection(id: string) {

@@ -233,15 +233,19 @@ export function bindEvents(client: any, connectionId: string) {
   })
 
   client.on("userlist", (event: any) => {
-    const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
-    const buf = s.buffers.get(bufferId)
-    if (!buf) return
+    if (!getStore().buffers.has(bufferId)) return
+
+    const conn = getStore().connections.get(connectionId)
+    const prefixMap = buildPrefixMap(conn?.isupport?.PREFIX)
 
     for (const user of event.users) {
-      s.addNick(bufferId, {
+      const rawMode = user.modes?.[0] ?? ""
+      // irc-framework may give mode chars (o,v) or prefix symbols (@,+)
+      const prefix = prefixMap[rawMode] ?? rawMode
+      getStore().addNick(bufferId, {
         nick: user.nick,
-        prefix: user.modes?.[0] ?? "",
+        prefix,
         away: !!user.away,
         account: user.account,
       })
@@ -266,6 +270,25 @@ export function bindEvents(client: any, connectionId: string) {
     s.addMessage(makeBufferId(connectionId, "Status"), makeEventMessage("Reconnecting..."))
   })
 
+  client.on("error", (event: any) => {
+    console.error(`[${connectionId}] IRC error:`, event)
+    const s = getStore()
+    const statusId = makeBufferId(connectionId, "Status")
+    if (s.buffers.has(statusId)) {
+      s.addMessage(statusId, makeEventMessage(`Error: ${event.message || event.error || JSON.stringify(event)}`))
+    }
+  })
+
+  client.on("socket error", (err: any) => {
+    console.error(`[${connectionId}] Socket error:`, err)
+    const s = getStore()
+    s.updateConnection(connectionId, { status: "error" })
+  })
+
+  client.on("irc error", (event: any) => {
+    console.error(`[${connectionId}] IRC protocol error:`, event)
+  })
+
   // Store ISUPPORT/server options
   client.on("server options", (event: any) => {
     const s = getStore()
@@ -286,4 +309,30 @@ function makeEventMessage(text: string): Message {
 function getNickMode(store: any, bufferId: string, nick: string): string {
   const buf = store.buffers.get(bufferId)
   return buf?.users.get(nick)?.prefix ?? ""
+}
+
+/**
+ * Build a map from mode char → prefix symbol using ISUPPORT PREFIX.
+ * e.g., "(ov)@+" → { o: "@", v: "+" }
+ * Also maps prefix symbols to themselves so both formats work.
+ */
+function buildPrefixMap(isupportPrefix: unknown): Record<string, string> {
+  const map: Record<string, string> = {}
+  if (typeof isupportPrefix !== "string") {
+    // Default fallback mapping
+    map["o"] = "@"; map["v"] = "+"; map["h"] = "%"
+    map["a"] = "&"; map["q"] = "~"
+    map["@"] = "@"; map["+"] = "+"; map["%"] = "%"
+    map["&"] = "&"; map["~"] = "~"
+    return map
+  }
+  const match = isupportPrefix.match(/^\(([^)]+)\)(.+)$/)
+  if (!match) return map
+  const modes = match[1]
+  const prefixes = match[2]
+  for (let i = 0; i < modes.length && i < prefixes.length; i++) {
+    map[modes[i]] = prefixes[i]
+    map[prefixes[i]] = prefixes[i] // identity mapping for prefix symbols
+  }
+  return map
 }

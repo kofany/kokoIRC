@@ -1,23 +1,36 @@
+import { useRef, useEffect } from "react"
 import { useStore } from "@/core/state/store"
 import { MessageLine } from "./MessageLine"
+import type { ScrollBoxRenderable } from "@opentui/core"
 
 export function ChatView() {
-  const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
-  const currentNick = useStore((s) => {
-    if (!buffer) return ""
-    return s.connections.get(buffer.connectionId)?.nick ?? ""
-  })
+  const activeBufferId = useStore((s) => s.activeBufferId)
+  const buffersMap = useStore((s) => s.buffers)
+  const connectionsMap = useStore((s) => s.connections)
+  const colors = useStore((s) => s.theme?.colors)
+  const scrollRef = useRef<ScrollBoxRenderable>(null)
+
+  const buffer = activeBufferId ? buffersMap.get(activeBufferId) ?? null : null
+  const currentNick = buffer ? connectionsMap.get(buffer.connectionId)?.nick ?? "" : ""
+  const messageCount = buffer?.messages.length ?? 0
+
+  // Auto-scroll to bottom when new messages arrive
+  useEffect(() => {
+    if (scrollRef.current && messageCount > 0) {
+      scrollRef.current.scrollTo(scrollRef.current.scrollHeight)
+    }
+  }, [messageCount, activeBufferId])
 
   if (!buffer) {
     return (
       <box flexGrow={1} justifyContent="center" alignItems="center">
-        <text><span fg="#555555">No active buffer</span></text>
+        <text><span fg={colors?.fg_dim ?? "#292e42"}>No active buffer</span></text>
       </box>
     )
   }
 
   return (
-    <scrollbox height="100%">
+    <scrollbox ref={scrollRef} height="100%">
       {buffer.messages.map((msg) => (
         <MessageLine key={msg.id} message={msg} isOwnNick={msg.nick === currentNick} />
       ))}

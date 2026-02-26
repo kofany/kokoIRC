@@ -1,31 +1,35 @@
+import { useMemo } from "react"
 import { useStore } from "@/core/state/store"
 import { sortNicks } from "@/core/state/sorting"
 import { resolveAbstractions, parseFormatString, StyledText } from "@/core/theme"
 import { BufferType, ActivityLevel, makeBufferId } from "@/types"
 
 const DEFAULT_PREFIX_ORDER = "~&@%+"
+const EMPTY_NICKS: import("@/types").NickEntry[] = []
 
 export function NickList() {
   const activeBufferId = useStore((s) => s.activeBufferId)
-  const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
+  const buffersMap = useStore((s) => s.buffers)
+  const connectionsMap = useStore((s) => s.connections)
   const theme = useStore((s) => s.theme)
-  const conn = useStore((s) => buffer ? s.connections.get(buffer.connectionId) : undefined)
+  const colors = theme?.colors
+
+  const buffer = activeBufferId ? buffersMap.get(activeBufferId) ?? null : null
+  const conn = buffer ? connectionsMap.get(buffer.connectionId) : undefined
 
   const prefixOrder = conn?.isupport?.PREFIX
     ? extractPrefixChars(conn.isupport.PREFIX)
     : DEFAULT_PREFIX_ORDER
 
-  const sortedNicks = useStore((s) => {
-    if (!buffer) return []
-    const buf = s.buffers.get(buffer.id)
-    if (!buf) return []
-    return sortNicks(Array.from(buf.users.values()), prefixOrder)
-  })
+  const sortedNicks = useMemo(() => {
+    if (!buffer) return EMPTY_NICKS
+    return sortNicks(Array.from(buffer.users.values()), prefixOrder)
+  }, [buffer, prefixOrder])
 
   if (!buffer || buffer.type !== BufferType.Channel) {
     return (
       <box flexGrow={1}>
-        <text><span fg="#555555">{"\u2014"}</span></text>
+        <text><span fg={colors?.fg_dim ?? "#292e42"}>{"\u2014"}</span></text>
       </box>
     )
   }
@@ -36,7 +40,7 @@ export function NickList() {
   return (
     <scrollbox height="100%">
       <box width="100%">
-        <text><span fg="#5555ff">{sortedNicks.length} users</span></text>
+        <text><span fg={colors?.fg_muted ?? "#565f89"}>{sortedNicks.length} users</span></text>
       </box>
       {sortedNicks.map((entry) => {
         const formatKey = getFormatKey(entry.prefix)
@@ -85,7 +89,8 @@ function getFormatKey(prefix: string): string {
   }
 }
 
-function extractPrefixChars(isupportPrefix: string): string {
+function extractPrefixChars(isupportPrefix: unknown): string {
+  if (typeof isupportPrefix !== "string") return DEFAULT_PREFIX_ORDER
   const match = isupportPrefix.match(/\)(.+)$/)
   return match ? match[1] : DEFAULT_PREFIX_ORDER
 }

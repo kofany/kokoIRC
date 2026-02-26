@@ -1,7 +1,7 @@
 [general]
-nick = "opentui-user"
-username = "opentui"
-realname = "OpenTUI IRC Client"
+nick = "kofany_tui"
+username = "kofany"
+realname = "OpenTUI IRC"
 theme = "default"
 timestamp_format = "%H:%M:%S"
 
@@ -21,10 +21,10 @@ visible = true
 width = 18
 visible = true
 
-# [servers.libera]
-# label = "Libera"
-# address = "irc.libera.chat"
-# port = 6697
-# tls = true
-# autoconnect = true
-# channels = ["#opentui"]
+[servers.ircnet]
+label = "IRCnet"
+address = "sasl.irc.atw.hu"
+port = 6697
+tls = true
+autoconnect = true
+channels = ["#polska", "#tahio"]

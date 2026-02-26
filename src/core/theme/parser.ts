@@ -128,6 +128,43 @@ function substituteVars(input: string, params: string[]): string {
  * Resolve `{name args...}` abstraction references.
  * Recursively expands up to MAX_ABSTRACTION_DEPTH.
  */
+/**
+ * Find the matching closing brace, respecting nested braces.
+ */
+function findMatchingBrace(input: string, openPos: number): number {
+  let depth = 1
+  let i = openPos + 1
+  while (i < input.length && depth > 0) {
+    if (input[i] === "{") depth++
+    else if (input[i] === "}") depth--
+    if (depth > 0) i++
+  }
+  return depth === 0 ? i : -1
+}
+
+/**
+ * Split abstraction args respecting nested braces.
+ * e.g., "$2 {pubnick $0}" → ["$2", "{pubnick $0}"]
+ */
+function splitAbstractionArgs(argsStr: string): string[] {
+  const args: string[] = []
+  let current = ""
+  let depth = 0
+  for (let i = 0; i < argsStr.length; i++) {
+    if (argsStr[i] === "{") depth++
+    else if (argsStr[i] === "}") depth--
+
+    if (argsStr[i] === " " && depth === 0) {
+      if (current.length > 0) args.push(current)
+      current = ""
+    } else {
+      current += argsStr[i]
+    }
+  }
+  if (current.length > 0) args.push(current)
+  return args
+}
+
 export function resolveAbstractions(
   input: string,
   abstracts: Record<string, string>,
@@ -140,10 +177,9 @@ export function resolveAbstractions(
 
   while (i < input.length) {
     if (input[i] === "{") {
-      // Find closing brace
-      const closeIdx = input.indexOf("}", i)
+      // Find matching closing brace (respecting nesting)
+      const closeIdx = findMatchingBrace(input, i)
       if (closeIdx === -1) {
-        // No closing brace, treat as literal
         result += input[i]
         i++
         continue
@@ -165,14 +201,15 @@ export function resolveAbstractions(
 
       if (name in abstracts) {
         const template = abstracts[name]
-        // Split args by spaces for $0, $1, etc.
-        const args = argsStr ? argsStr.split(" ") : []
-        // Substitute variables in the template
-        const expanded = substituteVars(template, args)
-        // Recurse to handle nested abstractions
+        // Split args respecting nested braces
+        const args = argsStr ? splitAbstractionArgs(argsStr) : []
+        // First resolve nested abstractions in args
+        const resolvedArgs = args.map(a => resolveAbstractions(a, abstracts, depth + 1))
+        // Then substitute into template
+        const expanded = substituteVars(template, resolvedArgs)
+        // Recurse to handle any remaining abstractions
         result += resolveAbstractions(expanded, abstracts, depth + 1)
       } else {
-        // Unknown abstraction — keep original
         result += input.substring(i, closeIdx + 1)
       }
 
