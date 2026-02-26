@@ -1,0 +1,47 @@
+[meta]
+name = "Default"
+description = "Clean default theme for OpenTUI IRC"
+
+[abstracts]
+timestamp = "%b$*%C❱%N"
+msgnick = "%w$0$1%B❯%N%| "
+ownnick = "%g%_$*%_%N"
+pubnick = "%B%_$*%_%N"
+menick = "%M%_$*%_%N"
+channel = "%B%_$*%_%N"
+action = "%m⚬%N $*"
+error = "%R⚠ $*%N"
+
+[formats.messages]
+own_msg = "{msgnick $2 {ownnick $0}}$1"
+pubmsg = "{msgnick $2 {pubnick $0}}$1"
+pubmsg_mention = "{msgnick %M$2 {menick $0}}%M$1%N"
+pubmsg_highlight = "{msgnick %R$2 %R%_$0%_%N}%R$1%N"
+action = "{action $0} $1"
+notice = "%C⬢%N %m$0%N❯ $1"
+
+[formats.events]
+join = "%G⥤%N $0 ($1@$2) has joined {channel $3}"
+part = "%Y⥢%N $0 has left {channel $1} ($2)"
+quit = "%R⏻%N $0 has quit ($1)"
+nick_change = "%M⬢%N $0 → $1"
+topic = "%B⚙%N Topic set by $0: $1"
+mode = "%M⛈%N $0 sets mode $1 on {channel $2}"
+
+[formats.sidepanel]
+header = "%B$0%N"
+item = "%w$0. %w$1%N"
+item_selected = "%Y$0. %W$1%N"
+item_activity_0 = "%w$0. %w$1%N"
+item_activity_1 = "%G$0. %G$1%N"
+item_activity_2 = "%R$0. %R$1%N"
+item_activity_3 = "%Y$0. %Y$1%N"
+item_activity_4 = "%M$0. %M$1%N"
+
+[formats.nicklist]
+owner = "%M~%m$0%N"
+admin = "%R&%r$0%N"
+op = "%Y@%B$0%N"
+halfop = "%C%%%c$0%N"
+voice = "%C+%c$0%N"
+normal = " %w$0%N"
