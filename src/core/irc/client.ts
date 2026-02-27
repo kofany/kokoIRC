@@ -1,4 +1,5 @@
 import { Client } from "irc-framework"
+import type { ConnectOptions } from "irc-framework"
 import type { ServerConfig } from "@/types/config"
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
@@ -59,7 +60,7 @@ export function connectServer(id: string, config: ServerConfig): Client {
 
   bindEvents(client, id)
 
-  const connectOpts: any = {
+  const connectOpts: ConnectOptions = {
     host: config.address,
     port: config.port,
     tls: config.tls,

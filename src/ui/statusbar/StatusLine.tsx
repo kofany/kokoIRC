@@ -1,46 +1,24 @@
-import { useMemo } from "react"
+import { useState, useEffect } from "react"
 import { useStore } from "@/core/state/store"
-import { sortBuffers } from "@/core/state/sorting"
+import { useSortedBuffers } from "@/core/state/selectors"
 import { BufferType, ActivityLevel } from "@/types"
-import type { StatusbarItem, StatusbarConfig } from "@/types/config"
-
-/** Resolve statusbar color: config override → theme fallback */
-function c(configVal: string, themeFallback: string | undefined, hardFallback: string): string {
-  return configVal || themeFallback || hardFallback
-}
-
-export function useStatusbarColors() {
-  const sb = useStore((s) => s.config?.statusbar)
-  const colors = useStore((s) => s.theme?.colors)
-  return {
-    bg: c(sb?.background ?? "", colors?.bg_alt, "#16161e"),
-    accent: c(sb?.accent_color ?? "", colors?.accent, "#7aa2f7"),
-    text: c(sb?.text_color ?? "", colors?.fg, "#a9b1d6"),
-    muted: c(sb?.muted_color ?? "", colors?.fg_muted, "#565f89"),
-    dim: c(sb?.dim_color ?? "", colors?.fg_dim, "#292e42"),
-    promptColor: c(sb?.prompt_color ?? "", colors?.accent, "#7aa2f7"),
-    inputColor: c(sb?.input_color ?? "", colors?.fg, "#c0caf5"),
-    cursorColor: c(sb?.cursor_color ?? "", colors?.cursor, "#7aa2f7"),
-    prompt: sb?.prompt ?? "[$channel] > ",
-    separator: sb?.separator ?? " | ",
-  }
-}
+import type { StatusbarItem } from "@/types/config"
+import { useStatusbarColors } from "@/ui/hooks/useStatusbarColors"
 
 export function StatusLine() {
   const config = useStore((s) => s.config)
   const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
-  const buffersMap = useStore((s) => s.buffers)
   const connections = useStore((s) => s.connections)
   const activeBufferId = useStore((s) => s.activeBufferId)
 
-  // Sort buffers the same way as BufferList sidebar
-  const sortedBuffers = useMemo(() => {
-    const list = Array.from(buffersMap.values()).map((buf) => ({
-      ...buf,
-      connectionLabel: connections.get(buf.connectionId)?.label ?? buf.connectionId,
-    }))
-    return sortBuffers(list)
-  }, [buffersMap, connections])
+  // Ticking clock — re-render every 60s
+  const [now, setNow] = useState(new Date())
+  useEffect(() => {
+    const id = setInterval(() => setNow(new Date()), 60_000)
+    return () => clearInterval(id)
+  }, [])
+
+  const sortedBuffers = useSortedBuffers()
 
   const sb = useStatusbarColors()
 
@@ -168,7 +146,6 @@ export function StatusLine() {
   }
 
   function renderTime(idx: number): React.ReactNode {
-    const now = new Date()
     const h = String(now.getHours()).padStart(2, "0")
     const m = String(now.getMinutes()).padStart(2, "0")
     return (

@@ -1,5 +1,6 @@
 import { useStore } from "@/core/state/store"
-import { resolveAbstractions, parseFormatString } from "@/core/theme"
+import { resolveAbstractions, parseFormatString, StyledText } from "@/core/theme"
+import { formatTimestamp } from "@/core/irc/formatting"
 import type { Message } from "@/types"
 import type { StyledSpan } from "@/types/theme"
 
@@ -85,26 +86,7 @@ export function MessageLine({ message, isOwnNick }: Props) {
 
   return (
     <box width="100%">
-      <text>
-        {allSpans.map((span, i) => {
-          let content: any = span.text
-          if (span.bold) content = <strong>{content}</strong>
-          if (span.italic) content = <em>{content}</em>
-          if (span.underline) content = <u>{content}</u>
-          return (
-            <span key={i} fg={span.fg} bg={span.bg}>
-              {content}
-            </span>
-          )
-        })}
-      </text>
+      <StyledText spans={allSpans} />
     </box>
   )
-}
-
-function formatTimestamp(date: Date, format: string): string {
-  const h = String(date.getHours()).padStart(2, "0")
-  const m = String(date.getMinutes()).padStart(2, "0")
-  const s = String(date.getSeconds()).padStart(2, "0")
-  return format.replace("%H", h).replace("%M", m).replace("%S", s)
 }

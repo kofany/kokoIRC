@@ -1,12 +1,14 @@
+import type { Client } from "irc-framework"
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
 import type { Message } from "@/types"
+import { formatDuration, formatDate, buildModeString, buildPrefixMap, getNickMode } from "./formatting"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
 }
 
-export function bindEvents(client: any, connectionId: string) {
+export function bindEvents(client: Client, connectionId: string) {
   const getStore = () => useStore.getState()
   const statusId = makeBufferId(connectionId, "Status")
 
@@ -20,20 +22,20 @@ export function bindEvents(client: any, connectionId: string) {
     statusMsg("%Z9ece6aSocket connected, registering...%N")
   })
 
-  client.on("socket error", (err: any) => {
+  client.on("socket error", (err) => {
     console.error(`[${connectionId}] Socket error:`, err)
     getStore().updateConnection(connectionId, { status: "error" })
     statusMsg(`%Zf7768eSocket error: ${err?.message ?? err}%N`)
   })
 
-  client.on("socket close", (hadError: any) => {
+  client.on("socket close", (hadError) => {
     if (hadError) {
       statusMsg(`%Zf7768eSocket closed with error%N`)
     }
   })
 
   // ─── Registration ─────────────────────────────────────────
-  client.on("registered", (event: any) => {
+  client.on("registered", (event) => {
     const s = getStore()
     s.updateConnection(connectionId, { status: "connected", nick: event.nick })
     statusMsg(`%Z9ece6aRegistered as %Zc0caf5${event.nick}%N`)
@@ -49,7 +51,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("join", (event: any) => {
+  client.on("join", (event) => {
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
     const conn = s.connections.get(connectionId)
@@ -74,7 +76,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("part", (event: any) => {
+  client.on("part", (event) => {
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
     const conn = s.connections.get(connectionId)
@@ -89,7 +91,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("quit", (event: any) => {
+  client.on("quit", (event) => {
     const s = getStore()
     const affected = Array.from(s.buffers.entries())
       .filter(([_, buf]) => buf.connectionId === connectionId && buf.users.has(event.nick))
@@ -103,7 +105,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("kick", (event: any) => {
+  client.on("kick", (event) => {
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
     const conn = s.connections.get(connectionId)
@@ -120,7 +122,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("privmsg", (event: any) => {
+  client.on("privmsg", (event) => {
     const s = getStore()
     const isChannel = isChannelTarget(event.target)
     const bufferName = isChannel ? event.target : event.nick
@@ -163,7 +165,7 @@ export function bindEvents(client: any, connectionId: string) {
       timestamp: new Date(event.time || Date.now()),
       type: "message",
       nick: event.nick,
-      nickMode: getNickMode(s, bufferId, event.nick),
+      nickMode: getNickMode(s.buffers, bufferId, event.nick),
       text: event.message,
       highlight: isMention,
       tags: event.tags,
@@ -177,7 +179,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("action", (event: any) => {
+  client.on("action", (event) => {
     const s = getStore()
     const isChannel = isChannelTarget(event.target)
     const bufferName = isChannel ? event.target : event.nick
@@ -194,7 +196,7 @@ export function bindEvents(client: any, connectionId: string) {
     })
   })
 
-  client.on("notice", (event: any) => {
+  client.on("notice", (event) => {
     const s = getStore()
     // Server notices go to server buffer
     const bufferId = event.from_server
@@ -225,7 +227,7 @@ export function bindEvents(client: any, connectionId: string) {
     })
   })
 
-  client.on("nick", (event: any) => {
+  client.on("nick", (event) => {
     const s = getStore()
     const conn = s.connections.get(connectionId)
 
@@ -247,7 +249,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("topic", (event: any) => {
+  client.on("topic", (event) => {
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
     s.updateBufferTopic(bufferId, event.topic, event.nick)
@@ -258,7 +260,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("userlist", (event: any) => {
+  client.on("userlist", (event) => {
     const bufferId = makeBufferId(connectionId, event.channel)
     if (!getStore().buffers.has(bufferId)) return
 
@@ -278,7 +280,7 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  client.on("mode", (event: any) => {
+  client.on("mode", (event) => {
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.target)
     if (!s.buffers.has(bufferId)) return
@@ -334,19 +336,19 @@ export function bindEvents(client: any, connectionId: string) {
     statusMsg("%Zf7768eDisconnected from server%N")
   })
 
-  client.on("reconnecting", (event: any) => {
+  client.on("reconnecting", (event) => {
     getStore().updateConnection(connectionId, { status: "connecting" })
     const attempt = event?.attempt ?? "?"
     const max = event?.max_retries ?? "?"
     statusMsg(`%Ze0af68Reconnecting (attempt ${attempt}/${max})...%N`)
   })
 
-  client.on("error", (event: any) => {
+  client.on("error", (event) => {
     console.error(`[${connectionId}] IRC error:`, event)
     statusMsg(`%Zf7768eError: ${event.message || event.error || JSON.stringify(event)}%N`)
   })
 
-  client.on("irc error", (event: any) => {
+  client.on("irc error", (event) => {
     console.error(`[${connectionId}] IRC protocol error:`, event)
     const reason = event.reason || event.error || event.message || JSON.stringify(event)
     statusMsg(`%Zf7768eIRC error: ${reason}%N`)
@@ -354,7 +356,7 @@ export function bindEvents(client: any, connectionId: string) {
 
   // Nick in use — irc-framework does NOT auto-retry, we must send alternate nick
   let nickRetries = 0
-  client.on("nick in use", (event: any) => {
+  client.on("nick in use", (event) => {
     nickRetries++
     if (nickRetries > 5) {
       statusMsg(`%Zf7768eCould not find available nick after 5 attempts%N`)
@@ -367,23 +369,23 @@ export function bindEvents(client: any, connectionId: string) {
   })
 
   // Invalid nick
-  client.on("nick invalid", (event: any) => {
+  client.on("nick invalid", (event) => {
     statusMsg(`%Zf7768eNick ${event.nick} is invalid: ${event.reason}%N`)
   })
 
   // SASL failure
-  client.on("sasl failed", (event: any) => {
+  client.on("sasl failed", (event) => {
     statusMsg(`%Zf7768eSASL authentication failed: ${event.reason}${event.message ? " — " + event.message : ""}%N`)
   })
 
   // Store ISUPPORT/server options
-  client.on("server options", (event: any) => {
+  client.on("server options", (event) => {
     const s = getStore()
     s.updateConnection(connectionId, { isupport: event.options || {} })
   })
 
   // ─── Whois response ──────────────────────────────────────
-  client.on("whois", (event: any) => {
+  client.on("whois", (event) => {
     const s = getStore()
     const targetBuffer = s.activeBufferId
     if (!targetBuffer) return
@@ -483,83 +485,3 @@ function makeFormattedEvent(key: string, params: string[]): Message {
   }
 }
 
-/** Reconstruct a displayable mode string from irc-framework mode event. */
-function buildModeString(event: any): string {
-  if (event.raw_modes) {
-    const params = event.raw_params ?? []
-    return event.raw_modes + (params.length > 0 ? " " + params.join(" ") : "")
-  }
-  if (!Array.isArray(event.modes)) return String(event.modes ?? "")
-
-  let modeChars = ""
-  const params: string[] = []
-  let lastSign = ""
-
-  for (const m of event.modes) {
-    const sign = m.mode[0]
-    const char = m.mode.slice(1)
-    if (sign !== lastSign) {
-      modeChars += sign
-      lastSign = sign
-    }
-    modeChars += char
-    if (m.param) params.push(m.param)
-  }
-
-  return modeChars + (params.length > 0 ? " " + params.join(" ") : "")
-}
-
-function formatDuration(seconds: number): string {
-  if (seconds < 60) return `${seconds}s`
-  const days = Math.floor(seconds / 86400)
-  const hours = Math.floor((seconds % 86400) / 3600)
-  const mins = Math.floor((seconds % 3600) / 60)
-  const secs = seconds % 60
-  const parts: string[] = []
-  if (days > 0) parts.push(`${days}d`)
-  if (hours > 0) parts.push(`${hours}h`)
-  if (mins > 0) parts.push(`${mins}m`)
-  if (secs > 0 && days === 0) parts.push(`${secs}s`)
-  return parts.join(" ")
-}
-
-function formatDate(date: Date): string {
-  const y = date.getFullYear()
-  const mo = String(date.getMonth() + 1).padStart(2, "0")
-  const d = String(date.getDate()).padStart(2, "0")
-  const h = String(date.getHours()).padStart(2, "0")
-  const mi = String(date.getMinutes()).padStart(2, "0")
-  const s = String(date.getSeconds()).padStart(2, "0")
-  return `${y}-${mo}-${d} ${h}:${mi}:${s}`
-}
-
-function getNickMode(store: any, bufferId: string, nick: string): string {
-  const buf = store.buffers.get(bufferId)
-  return buf?.users.get(nick)?.prefix ?? ""
-}
-
-/**
- * Build a map from mode char → prefix symbol using ISUPPORT PREFIX.
- * e.g., "(ov)@+" → { o: "@", v: "+" }
- * Also maps prefix symbols to themselves so both formats work.
- */
-function buildPrefixMap(isupportPrefix: unknown): Record<string, string> {
-  const map: Record<string, string> = {}
-  if (typeof isupportPrefix !== "string") {
-    // Default fallback mapping
-    map["o"] = "@"; map["v"] = "+"; map["h"] = "%"
-    map["a"] = "&"; map["q"] = "~"
-    map["@"] = "@"; map["+"] = "+"; map["%"] = "%"
-    map["&"] = "&"; map["~"] = "~"
-    return map
-  }
-  const match = isupportPrefix.match(/^\(([^)]+)\)(.+)$/)
-  if (!match) return map
-  const modes = match[1]
-  const prefixes = match[2]
-  for (let i = 0; i < modes.length && i < prefixes.length; i++) {
-    map[modes[i]] = prefixes[i]
-    map[prefixes[i]] = prefixes[i] // identity mapping for prefix symbols
-  }
-  return map
-}

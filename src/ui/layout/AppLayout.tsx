@@ -1,5 +1,5 @@
 import { useStore } from "@/core/state/store"
-import { useStatusbarColors } from "@/ui/statusbar/StatusLine"
+import { useStatusbarColors } from "@/ui/hooks/useStatusbarColors"
 import { BufferType } from "@/types"
 
 interface Props {

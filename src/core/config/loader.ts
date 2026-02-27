@@ -2,6 +2,23 @@ import { parse as parseTOML, stringify as stringifyTOML } from "smol-toml"
 import { DEFAULT_CONFIG } from "./defaults"
 import type { AppConfig, ServerConfig } from "@/types/config"
 
+/** Create a deep-ish clone of config, safe for in-place mutation. */
+export function cloneConfig(config: AppConfig): AppConfig {
+  return {
+    general: { ...config.general },
+    display: { ...config.display },
+    sidepanel: {
+      left: { ...config.sidepanel.left },
+      right: { ...config.sidepanel.right },
+    },
+    statusbar: { ...config.statusbar },
+    servers: Object.fromEntries(
+      Object.entries(config.servers).map(([id, srv]) => [id, { ...srv, channels: [...srv.channels] }])
+    ),
+    aliases: { ...config.aliases },
+  }
+}
+
 export function mergeWithDefaults(partial: Record<string, any>): AppConfig {
   return {
     general: { ...DEFAULT_CONFIG.general, ...partial.general },

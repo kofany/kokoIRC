@@ -4,6 +4,7 @@ import { useStore } from "@/core/state/store"
 import { loadConfig } from "@/core/config/loader"
 import { loadTheme } from "@/core/theme/loader"
 import { connectAllAutoconnect } from "@/core/irc"
+import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
 import { AppLayout } from "@/ui/layout/AppLayout"
 import { TopicBar } from "@/ui/layout/TopicBar"
 import { BufferList } from "@/ui/sidebar/BufferList"
@@ -26,10 +27,10 @@ export function App() {
 
   useEffect(() => {
     async function init() {
-      const config = await loadConfig("config/config.toml")
+      const config = await loadConfig(CONFIG_PATH)
       setConfig(config)
 
-      const themePath = `themes/${config.general.theme}.theme`
+      const themePath = THEME_PATH(config.general.theme)
       const theme = await loadTheme(themePath)
       setTheme(theme)
 

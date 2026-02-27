@@ -1,3 +1,5 @@
 export { parseCommand } from "./parser"
-export { executeCommand, commands, getCommandNames } from "./handlers"
-export type { CommandDef } from "./handlers"
+export type { ParsedCommand } from "./parser"
+export { executeCommand, getCommandNames } from "./execution"
+export { commands } from "./registry"
+export type { CommandDef } from "./types"

@@ -3,7 +3,7 @@ import { useStore } from "@/core/state/store"
 import { parseCommand, executeCommand, getCommandNames } from "@/core/commands"
 import { getClient } from "@/core/irc"
 import { useKeyboard, useRenderer } from "@opentui/react"
-import { useStatusbarColors } from "@/ui/statusbar/StatusLine"
+import { useStatusbarColors } from "@/ui/hooks/useStatusbarColors"
 import type { InputRenderable } from "@opentui/core"
 
 export function CommandInput() {
