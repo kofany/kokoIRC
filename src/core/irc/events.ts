@@ -3,6 +3,7 @@ import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
 import type { Message } from "@/types"
 import { formatDuration, formatDate, buildModeString, buildPrefixMap, buildModeOrder, getHighestPrefix, getNickMode } from "./formatting"
+import { handleNetsplitQuit, handleNetsplitJoin, destroyNetsplitState } from "./netsplit"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
@@ -70,6 +71,12 @@ export function bindEvents(client: Client, connectionId: string) {
       })
     } else {
       s.addNick(bufferId, { nick: event.nick, prefix: "", modes: "", away: false, account: event.account })
+
+      // If this join is from a netsplit healing, batch it instead of showing individually
+      if (handleNetsplitJoin(connectionId, event.nick, bufferId)) {
+        return
+      }
+
       s.addMessage(bufferId, makeFormattedEvent("join", [
         event.nick, event.ident || "", event.hostname || "", event.channel,
       ]))
@@ -97,8 +104,17 @@ export function bindEvents(client: Client, connectionId: string) {
       .filter(([_, buf]) => buf.connectionId === connectionId && buf.users.has(event.nick))
       .map(([id]) => id)
 
+    // Remove nick from all affected channels
     for (const id of affected) {
       getStore().removeNick(id, event.nick)
+    }
+
+    // Check if this is a netsplit — if so, batch it instead of showing individual quits
+    if (handleNetsplitQuit(connectionId, event.nick, event.message || "", affected)) {
+      return
+    }
+
+    for (const id of affected) {
       getStore().addMessage(id, makeFormattedEvent("quit", [
         event.nick, event.message || "",
       ]))
@@ -355,6 +371,7 @@ export function bindEvents(client: Client, connectionId: string) {
 
   client.on("close", () => {
     clearInterval(lagPingInterval)
+    destroyNetsplitState(connectionId)
     getStore().updateConnection(connectionId, { status: "disconnected" })
     statusMsg("%Zf7768eDisconnected from server%N")
   })
