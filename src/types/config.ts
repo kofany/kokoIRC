@@ -28,6 +28,7 @@ export interface AppConfig {
   sidepanel: SidepanelConfig
   statusbar: StatusbarConfig
   servers: Record<string, ServerConfig>
+  aliases: Record<string, string>
 }
 
 export interface GeneralConfig {

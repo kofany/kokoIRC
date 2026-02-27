@@ -12,6 +12,7 @@ export function mergeWithDefaults(partial: Record<string, any>): AppConfig {
     },
     statusbar: { ...DEFAULT_CONFIG.statusbar, ...partial.statusbar },
     servers: partial.servers ?? {},
+    aliases: partial.aliases ?? {},
   }
 }
 
@@ -95,6 +96,10 @@ export async function saveConfig(configPath: string, config: AppConfig): Promise
   if (sb.prompt_color) tomlObj.statusbar.prompt_color = sb.prompt_color
   if (sb.input_color) tomlObj.statusbar.input_color = sb.input_color
   if (sb.cursor_color) tomlObj.statusbar.cursor_color = sb.cursor_color
+
+  if (Object.keys(config.aliases).length > 0) {
+    tomlObj.aliases = config.aliases
+  }
 
   for (const [id, server] of Object.entries(config.servers)) {
     tomlObj.servers[id] = cleanServerForTOML(server)

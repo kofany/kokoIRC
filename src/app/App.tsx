@@ -38,19 +38,6 @@ export function App() {
     init().catch((err) => console.error("[init]", err))
   }, [])
 
-  // Auto-copy selected text to clipboard on mouse release
-  useEffect(() => {
-    const handleSelection = (selection: any) => {
-      if (!selection || selection.isDragging) return
-      const text = selection.getSelectedText()
-      if (text) {
-        renderer.copyToClipboardOSC52(text)
-      }
-    }
-    renderer.on("selection", handleSelection)
-    return () => { renderer.off("selection", handleSelection) }
-  }, [renderer])
-
   // Show loading state until config is loaded
   if (!config) {
     return (

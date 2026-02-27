@@ -1,16 +1,33 @@
-import { useState, useRef, useCallback } from "react"
+import { useState, useRef, useCallback, useEffect } from "react"
 import { useStore } from "@/core/state/store"
 import { parseCommand, executeCommand, getCommandNames } from "@/core/commands"
 import { getClient } from "@/core/irc"
-import { useKeyboard } from "@opentui/react"
+import { useKeyboard, useRenderer } from "@opentui/react"
 import { useStatusbarColors } from "@/ui/statusbar/StatusLine"
 import type { InputRenderable } from "@opentui/core"
 
 export function CommandInput() {
+  const renderer = useRenderer()
   const [value, setValue] = useState("")
   const [history, setHistory] = useState<string[]>([])
   const [historyIndex, setHistoryIndex] = useState(-1)
   const inputRef = useRef<InputRenderable>(null)
+
+  // Auto-copy selected text to clipboard, then clear selection and refocus input
+  useEffect(() => {
+    const handleSelection = (selection: any) => {
+      if (!selection || selection.isDragging) return
+      const text = selection.getSelectedText()
+      if (text) {
+        renderer.copyToClipboardOSC52(text)
+      }
+      // Clear selection highlight and return focus to input for immediate Cmd+V
+      renderer.clearSelection()
+      if (inputRef.current) inputRef.current.focus()
+    }
+    renderer.on("selection", handleSelection)
+    return () => { renderer.off("selection", handleSelection) }
+  }, [renderer])
 
   // Tab completion state
   const tabState = useRef<{

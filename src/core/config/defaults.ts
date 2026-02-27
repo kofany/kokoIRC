@@ -38,4 +38,5 @@ export const DEFAULT_CONFIG: AppConfig = {
     cursor_color: "",
   },
   servers: {},
+  aliases: {},
 }

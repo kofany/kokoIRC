@@ -199,7 +199,7 @@ export function bindEvents(client: any, connectionId: string) {
     // Server notices go to server buffer
     const bufferId = event.from_server
       ? makeBufferId(connectionId, "Status")
-      : makeBufferId(connectionId, event.target?.startsWith("#") ? event.target : event.nick || "Status")
+      : makeBufferId(connectionId, event.target && isChannelTarget(event.target) ? event.target : event.nick || "Status")
 
     if (!s.buffers.has(bufferId)) {
       // Fallback to server status buffer

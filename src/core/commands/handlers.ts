@@ -4,6 +4,7 @@ import { loadConfig, saveConfig, saveCredentialsToEnv } from "@/core/config/load
 import { loadTheme } from "@/core/theme/loader"
 import { makeBufferId, BufferType } from "@/types"
 import type { ServerConfig } from "@/types/config"
+import { parseCommand } from "./parser"
 import type { ParsedCommand } from "./parser"
 
 type Handler = (args: string[], connectionId: string) => void
@@ -80,10 +81,14 @@ export const commands: Record<string, CommandDef> = {
     handler(args, connId) {
       const client = getClient(connId)
       if (!client) return
-      const [channel, key] = args
+      let [channel, key] = args
       if (!channel) {
         addLocalEvent(`%Zf7768eUsage: /join <channel> [key]%N`)
         return
+      }
+      // Auto-prefix # unless it already has a valid channel prefix (RFC 2811: #, &, !, +)
+      if (!/^[#&!+]/.test(channel)) {
+        channel = "#" + channel
       }
       client.join(channel, key)
     },
@@ -563,6 +568,110 @@ export const commands: Record<string, CommandDef> = {
     usage: "/set [section.field] [value]",
   },
 
+  alias: {
+    async handler(args) {
+      const s = useStore.getState()
+      const config = s.config
+      if (!config) return
+
+      // /alias — list all
+      if (args.length === 0) {
+        const entries = Object.entries(config.aliases)
+        if (entries.length === 0) {
+          addLocalEvent(`%Z565f89No aliases defined%N`)
+          return
+        }
+        addLocalEvent(`%Z7aa2f7───── Aliases ─────────────────────────────────%N`)
+        for (const [name, body] of entries.sort((a, b) => a[0].localeCompare(b[0]))) {
+          addLocalEvent(`  %Z7aa2f7${name.padEnd(16)}%N= %Zc0caf5${body.replace(/%/g, "%%")}%N`)
+        }
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────────%N`)
+        return
+      }
+
+      const name = args[0]
+
+      // /alias -name — remove
+      if (name.startsWith("-")) {
+        const aliasName = name.slice(1).toLowerCase()
+        if (!config.aliases[aliasName]) {
+          addLocalEvent(`%Zf7768eAlias '${aliasName}' not found%N`)
+          return
+        }
+        delete config.aliases[aliasName]
+        s.setConfig({ ...config })
+        try {
+          await saveConfig("config/config.toml", config)
+          addLocalEvent(`%Z9ece6aAlias '${aliasName}' removed%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+        }
+        return
+      }
+
+      const aliasName = name.toLowerCase()
+
+      // /alias name — show one
+      if (!args[1]) {
+        const body = config.aliases[aliasName]
+        if (!body) {
+          addLocalEvent(`%Zf7768eAlias '${aliasName}' not found%N`)
+          return
+        }
+        addLocalEvent(`%Z7aa2f7${aliasName}%N = %Zc0caf5${body.replace(/%/g, "%%")}%N`)
+        return
+      }
+
+      // /alias name body — create/overwrite
+      const body = args[1]
+
+      // Protect built-in commands
+      if (commands[aliasName] || aliasMap[aliasName]) {
+        addLocalEvent(`%Zf7768eCannot override built-in command '${aliasName}'%N`)
+        return
+      }
+
+      config.aliases[aliasName] = body
+      s.setConfig({ ...config })
+      try {
+        await saveConfig("config/config.toml", config)
+        addLocalEvent(`%Z9ece6aAlias '${aliasName}' = %Zc0caf5${body.replace(/%/g, "%%")}%N`)
+      } catch (err: any) {
+        addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+      }
+    },
+    description: "Define, list, or remove user aliases",
+    usage: "/alias [[-]name] [body]",
+  },
+
+  unalias: {
+    async handler(args) {
+      if (!args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /unalias <name>%N`)
+        return
+      }
+      const s = useStore.getState()
+      const config = s.config
+      if (!config) return
+
+      const aliasName = args[0].toLowerCase()
+      if (!config.aliases[aliasName]) {
+        addLocalEvent(`%Zf7768eAlias '${aliasName}' not found%N`)
+        return
+      }
+      delete config.aliases[aliasName]
+      s.setConfig({ ...config })
+      try {
+        await saveConfig("config/config.toml", config)
+        addLocalEvent(`%Z9ece6aAlias '${aliasName}' removed%N`)
+      } catch (err: any) {
+        addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+      }
+    },
+    description: "Remove a user alias",
+    usage: "/unalias <name>",
+  },
+
   disconnect: {
     handler(args, connId) {
       const target = args[0]?.toLowerCase()
@@ -629,6 +738,14 @@ function getConfigValue(config: import("@/types/config").AppConfig, path: string
     }
   }
 
+  // aliases.<name> — allow creating new aliases via /set
+  if (section === "aliases") {
+    if (parts.length < 2) return null
+    const name = parts[1]
+    const value = config.aliases[name] ?? ""
+    return { value, field: name, isCredential: false }
+  }
+
   // sidepanel.left.<field> / sidepanel.right.<field>
   if (section === "sidepanel") {
     if (parts.length < 3) return null
@@ -650,6 +767,11 @@ function getConfigValue(config: import("@/types/config").AppConfig, path: string
 function setConfigValue(config: import("@/types/config").AppConfig, path: string, value: any): void {
   const parts = path.split(".")
   const section = parts[0]
+
+  if (section === "aliases" && parts.length >= 2) {
+    config.aliases[parts[1]] = String(value)
+    return
+  }
 
   if (section === "servers" && parts.length >= 3) {
     const server = config.servers[parts[1]]
@@ -685,10 +807,10 @@ function coerceValue(raw: string, existing: any): any {
   return raw
 }
 
-/** Format a value for display. */
+/** Format a value for display. Escapes % so the theme parser doesn't eat color codes. */
 function formatValue(v: any): string {
-  if (Array.isArray(v)) return v.join(", ")
-  return String(v)
+  const raw = Array.isArray(v) ? v.join(", ") : String(v)
+  return raw.replace(/%/g, "%%")
 }
 
 /** Display all settings grouped by section. */
@@ -712,6 +834,10 @@ function listAllSettings(config: import("@/types/config").AppConfig): void {
   showSection("sidepanel.left", "sidepanel.left", config.sidepanel.left)
   showSection("sidepanel.right", "sidepanel.right", config.sidepanel.right)
   showSection("statusbar", "statusbar", config.statusbar)
+
+  if (Object.keys(config.aliases).length > 0) {
+    showSection("aliases", "aliases", config.aliases)
+  }
 
   for (const [id, srv] of Object.entries(config.servers)) {
     showSection(`servers.${id}`, `servers.${id}`, srv)
@@ -740,23 +866,93 @@ function getCanonicalName(name: string): string {
   return aliasMap[name] ?? name
 }
 
-// ─── Public API ──────────────────────────────────────────────
+// ─── User Alias Expansion ────────────────────────────────────
 
-export function executeCommand(parsed: ParsedCommand, connectionId: string): boolean {
-  const def = commands[parsed.command] ?? findByAlias(parsed.command)
-  if (!def) {
-    addLocalEvent(`%Zf7768eUnknown command: /${parsed.command}. Type /help for available commands.%N`)
-    return false
+const MAX_ALIAS_DEPTH = 10
+
+/** Expand a user alias template with positional args and context variables. */
+function expandAlias(template: string, args: string[], connectionId: string): string {
+  let body = template
+
+  // Auto-append $* if body contains no $ references
+  if (!body.includes("$")) {
+    body += " $*"
   }
-  def.handler(parsed.args, connectionId)
-  return true
+
+  // Context variables
+  const s = useStore.getState()
+  const conn = s.connections.get(connectionId)
+  const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
+
+  body = body.replace(/\$\{?C\}?/g, buf?.name ?? "")
+  body = body.replace(/\$\{?N\}?/g, conn?.nick ?? "")
+  body = body.replace(/\$\{?S\}?/g, conn?.label ?? "")
+  body = body.replace(/\$\{?T\}?/g, buf?.name ?? "")
+
+  // Range args: $0-, $1-, $2-, etc.
+  body = body.replace(/\$(\d)-/g, (_match, n) => {
+    const idx = parseInt(n, 10)
+    return args.slice(idx).join(" ")
+  })
+
+  // $* — all args
+  body = body.replace(/\$\*/g, args.join(" "))
+
+  // Single positional: $0 .. $9
+  body = body.replace(/\$(\d)/g, (_match, n) => {
+    const idx = parseInt(n, 10)
+    return args[idx] ?? ""
+  })
+
+  return body.trim()
 }
 
-/** All registered command names + aliases, sorted. For tab completion. */
+// ─── Public API ──────────────────────────────────────────────
+
+export function executeCommand(parsed: ParsedCommand, connectionId: string, depth = 0): boolean {
+  // Recursion guard
+  if (depth > MAX_ALIAS_DEPTH) {
+    addLocalEvent(`%Zf7768eAlias recursion limit reached (max ${MAX_ALIAS_DEPTH})%N`)
+    return false
+  }
+
+  // 1. Built-in command or built-in alias
+  const def = commands[parsed.command] ?? findByAlias(parsed.command)
+  if (def) {
+    def.handler(parsed.args, connectionId)
+    return true
+  }
+
+  // 2. User alias
+  const config = useStore.getState().config
+  const aliasBody = config?.aliases[parsed.command]
+  if (aliasBody) {
+    const expanded = expandAlias(aliasBody, parsed.args, connectionId)
+    // Split by ; for command chaining
+    const parts = expanded.split(";").map((p) => p.trim()).filter(Boolean)
+    for (const part of parts) {
+      const sub = parseCommand(part)
+      if (sub) {
+        executeCommand(sub, connectionId, depth + 1)
+      }
+    }
+    return true
+  }
+
+  // 3. Unknown
+  addLocalEvent(`%Zf7768eUnknown command: /${parsed.command}. Type /help for available commands.%N`)
+  return false
+}
+
+/** All registered command names + built-in aliases + user aliases, sorted. For tab completion. */
 export function getCommandNames(): string[] {
   const names = Object.keys(commands)
   for (const alias of Object.keys(aliasMap)) {
     names.push(alias)
+  }
+  const userAliases = useStore.getState().config?.aliases ?? {}
+  for (const name of Object.keys(userAliases)) {
+    names.push(name)
   }
   return names.sort()
 }

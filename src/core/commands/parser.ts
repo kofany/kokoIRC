@@ -3,7 +3,7 @@ export interface ParsedCommand {
   args: string[]
 }
 
-const GREEDY_COMMANDS = new Set(["msg", "notice", "me", "quit", "topic", "kick", "close", "disconnect", "set"])
+const GREEDY_COMMANDS = new Set(["msg", "notice", "me", "quit", "topic", "kick", "close", "disconnect", "set", "alias"])
 
 export function parseCommand(input: string): ParsedCommand | null {
   if (!input.startsWith("/")) return null
