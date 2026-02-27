@@ -1,4 +1,6 @@
+import { useMemo } from "react"
 import { useStore } from "@/core/state/store"
+import { sortBuffers } from "@/core/state/sorting"
 import { BufferType, ActivityLevel } from "@/types"
 import type { StatusbarItem, StatusbarConfig } from "@/types/config"
 
@@ -27,9 +29,18 @@ export function useStatusbarColors() {
 export function StatusLine() {
   const config = useStore((s) => s.config)
   const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
-  const buffers = useStore((s) => s.buffers)
+  const buffersMap = useStore((s) => s.buffers)
   const connections = useStore((s) => s.connections)
   const activeBufferId = useStore((s) => s.activeBufferId)
+
+  // Sort buffers the same way as BufferList sidebar
+  const sortedBuffers = useMemo(() => {
+    const list = Array.from(buffersMap.values()).map((buf) => ({
+      ...buf,
+      connectionLabel: connections.get(buf.connectionId)?.label ?? buf.connectionId,
+    }))
+    return sortBuffers(list)
+  }, [buffersMap, connections])
 
   const sb = useStatusbarColors()
 
@@ -69,11 +80,11 @@ export function StatusLine() {
 
   function renderActiveWindows(idx: number): React.ReactNode {
     const activityItems: React.ReactNode[] = []
-    let winNum = 0
     let activeWinNum = 0
-    for (const [id, buf] of buffers) {
-      winNum++
-      if (id === activeBufferId) {
+    for (let i = 0; i < sortedBuffers.length; i++) {
+      const buf = sortedBuffers[i]
+      const winNum = i + 1
+      if (buf.id === activeBufferId) {
         activeWinNum = winNum
         continue
       }
