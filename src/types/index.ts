@@ -73,7 +73,8 @@ export interface Message {
 
 export interface NickEntry {
   nick: string
-  prefix: string
+  prefix: string   // displayed prefix symbol (@, +, etc.) — derived from modes
+  modes: string    // raw mode chars this user has (e.g. "ov" for op+voice)
   away: boolean
   account?: string
 }

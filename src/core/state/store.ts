@@ -36,6 +36,11 @@ interface AppState {
   // Config/Theme
   setConfig: (config: AppConfig) => void
   setTheme: (theme: ThemeFile) => void
+
+  // App lifecycle
+  shutdownHandler: (() => void) | null
+  setShutdownHandler: (handler: () => void) => void
+  requestShutdown: () => void
 }
 
 export const useStore = create<AppState>((set, get) => ({
@@ -151,4 +156,11 @@ export const useStore = create<AppState>((set, get) => ({
 
   setConfig: (config) => set({ config }),
   setTheme: (theme) => set({ theme }),
+
+  shutdownHandler: null,
+  setShutdownHandler: (handler) => set({ shutdownHandler: handler }),
+  requestShutdown: () => {
+    const handler = get().shutdownHandler
+    if (handler) handler()
+  },
 }))

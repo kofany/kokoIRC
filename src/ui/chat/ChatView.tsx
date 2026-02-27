@@ -12,14 +12,14 @@ export function ChatView() {
 
   const buffer = activeBufferId ? buffersMap.get(activeBufferId) ?? null : null
   const currentNick = buffer ? connectionsMap.get(buffer.connectionId)?.nick ?? "" : ""
-  const messageCount = buffer?.messages.length ?? 0
 
-  // Auto-scroll to bottom when new messages arrive
+  // Snap to bottom when switching buffers
   useEffect(() => {
-    if (scrollRef.current && messageCount > 0) {
+    if (scrollRef.current) {
+      scrollRef.current.stickyScroll = true
       scrollRef.current.scrollTo(scrollRef.current.scrollHeight)
     }
-  }, [messageCount, activeBufferId])
+  }, [activeBufferId])
 
   if (!buffer) {
     return (
@@ -30,7 +30,7 @@ export function ChatView() {
   }
 
   return (
-    <scrollbox ref={scrollRef} height="100%">
+    <scrollbox ref={scrollRef} height="100%" stickyScroll stickyStart="bottom">
       {buffer.messages.map((msg) => (
         <MessageLine key={msg.id} message={msg} isOwnNick={msg.nick === currentNick} />
       ))}

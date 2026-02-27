@@ -22,7 +22,7 @@ export function connectServer(id: string, config: ServerConfig): Client {
   // Per-server nick/username/realname override or fall back to [general]
   const nick = config.nick || general?.nick || "opentui"
   const username = config.username || general?.username || "opentui"
-  const realname = config.realname || general?.realname || "OpenTUI IRC"
+  const realname = config.realname || general?.realname || "kIRC"
 
   store.addConnection({
     id,
@@ -103,7 +103,7 @@ export function connectServer(id: string, config: ServerConfig): Client {
 export function disconnectServer(id: string, message?: string) {
   const client = clients.get(id)
   if (client) {
-    client.quit(message ?? "OpenTUI IRC")
+    client.quit(message ?? "kIRC")
     clients.delete(id)
   }
 }

@@ -1,14 +1,15 @@
-import { getClient, connectServer, disconnectServer } from "@/core/irc"
+import { getClient, connectServer, disconnectServer, getAllClientIds } from "@/core/irc"
 import { useStore } from "@/core/state/store"
 import { loadConfig, saveConfig, saveCredentialsToEnv, cloneConfig } from "@/core/config/loader"
 import { loadTheme } from "@/core/theme/loader"
-import { BufferType } from "@/types"
+import { BufferType, makeBufferId, ActivityLevel } from "@/types"
 import type { ServerConfig } from "@/types/config"
 import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
 import type { CommandDef } from "./types"
 import {
   addLocalEvent,
   switchToStatusBuffer,
+  getActiveChannel,
   getConfigValue,
   setConfigValue,
   coerceValue,
@@ -94,9 +95,47 @@ export const commands: Record<string, CommandDef> = {
         addLocalEvent(`%Zf7768eUsage: /msg <target> <message>%N`)
         return
       }
-      client.say(args[0], args[1])
+      const [target, message] = args
+      client.say(target, message)
+
+      const s = useStore.getState()
+      const conn = s.connections.get(connId)
+      const isChannel = /^[#&!+]/.test(target)
+      const bufferId = makeBufferId(connId, target)
+
+      // For private messages, open a query window if not already open
+      if (!isChannel && !s.buffers.has(bufferId)) {
+        s.addBuffer({
+          id: bufferId,
+          connectionId: connId,
+          type: BufferType.Query,
+          name: target,
+          messages: [],
+          activity: ActivityLevel.None,
+          unreadCount: 0,
+          lastRead: new Date(),
+          users: new Map(),
+        })
+      }
+
+      // Show the sent message in the target buffer
+      if (s.buffers.has(bufferId)) {
+        s.addMessage(bufferId, {
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          type: "message",
+          nick: conn?.nick ?? "",
+          nickMode: "",
+          text: message,
+          highlight: false,
+        })
+        // Switch to the query window so user sees the conversation
+        if (!isChannel) {
+          s.setActiveBuffer(bufferId)
+        }
+      }
     },
-    description: "Send a private message",
+    description: "Send a message to a user or channel",
     usage: "/msg <target> <message>",
   },
 
@@ -108,6 +147,15 @@ export const commands: Record<string, CommandDef> = {
       const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
       if (buf && args[0]) {
         client.action(buf.name, args[0])
+        const conn = s.connections.get(connId)
+        s.addMessage(buf.id, {
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          type: "action",
+          nick: conn?.nick ?? "",
+          text: args[0],
+          highlight: false,
+        })
       }
     },
     description: "Send an action message",
@@ -128,12 +176,16 @@ export const commands: Record<string, CommandDef> = {
   },
 
   quit: {
-    handler(args, connId) {
-      const client = getClient(connId)
-      if (!client) return
-      client.quit(args[0] ?? "OpenTUI IRC")
+    handler(args) {
+      const reason = args.join(" ") || "kIRC"
+      const ids = getAllClientIds()
+      for (const id of ids) {
+        disconnectServer(id, reason)
+      }
+      // Give IRC a moment to send QUIT, then close the app
+      setTimeout(() => useStore.getState().requestShutdown(), 300)
     },
-    description: "Disconnect from server",
+    description: "Quit all connections and close kIRC",
     usage: "/quit [message]",
   },
 
@@ -219,8 +271,17 @@ export const commands: Record<string, CommandDef> = {
       const client = getClient(connId)
       if (!client) return
       if (args.length === 0) {
+        // No args: query own user modes
         const conn = useStore.getState().connections.get(connId)
         if (conn) client.raw(`MODE ${conn.nick}`)
+      } else if (/^[+-]/.test(args[0])) {
+        // First arg starts with +/- → mode change for active channel
+        const channel = getActiveChannel()
+        if (!channel) {
+          addLocalEvent(`%Zf7768eNo active channel for /mode%N`)
+          return
+        }
+        client.raw(`MODE ${channel} ${args.join(" ")}`)
       } else {
         client.raw(`MODE ${args.join(" ")}`)
       }
@@ -621,6 +682,168 @@ export const commands: Record<string, CommandDef> = {
     },
     description: "Remove a user alias",
     usage: "/unalias <name>",
+  },
+
+  op: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /op <nick> [nick2 ...]%N`)
+        return
+      }
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+      const modes = "+" + "o".repeat(args.length)
+      client.raw(`MODE ${channel} ${modes} ${args.join(" ")}`)
+    },
+    description: "Give operator status",
+    usage: "/op <nick> [nick2 ...]",
+  },
+
+  deop: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /deop <nick> [nick2 ...]%N`)
+        return
+      }
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+      const modes = "-" + "o".repeat(args.length)
+      client.raw(`MODE ${channel} ${modes} ${args.join(" ")}`)
+    },
+    description: "Remove operator status",
+    usage: "/deop <nick> [nick2 ...]",
+  },
+
+  voice: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /voice <nick> [nick2 ...]%N`)
+        return
+      }
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+      const modes = "+" + "v".repeat(args.length)
+      client.raw(`MODE ${channel} ${modes} ${args.join(" ")}`)
+    },
+    description: "Give voice status",
+    usage: "/voice <nick> [nick2 ...]",
+    aliases: ["v"],
+  },
+
+  devoice: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /devoice <nick> [nick2 ...]%N`)
+        return
+      }
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+      const modes = "-" + "v".repeat(args.length)
+      client.raw(`MODE ${channel} ${modes} ${args.join(" ")}`)
+    },
+    description: "Remove voice status",
+    usage: "/devoice <nick> [nick2 ...]",
+  },
+
+  kick: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /kick <nick> [reason]%N`)
+        return
+      }
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+      const reason = args[1] || args[0]
+      client.raw(`KICK ${channel} ${args[0]} :${reason}`)
+    },
+    description: "Kick a user from the channel",
+    usage: "/kick <nick> [reason]",
+    aliases: ["k"],
+  },
+
+  ban: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /ban <nick|mask>%N`)
+        return
+      }
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+      // If it looks like a hostmask, use directly; otherwise wrap as *!*@<nick>
+      const mask = args[0].includes("!") || args[0].includes("@") ? args[0] : `${args[0]}!*@*`
+      client.raw(`MODE ${channel} +b ${mask}`)
+    },
+    description: "Ban a user or hostmask",
+    usage: "/ban <nick|mask>",
+    aliases: ["b"],
+  },
+
+  unban: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /unban <nick|mask>%N`)
+        return
+      }
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+      const mask = args[0].includes("!") || args[0].includes("@") ? args[0] : `${args[0]}!*@*`
+      client.raw(`MODE ${channel} -b ${mask}`)
+    },
+    description: "Remove a ban",
+    usage: "/unban <nick|mask>",
+  },
+
+  kb: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /kb <nick> [reason]%N`)
+        return
+      }
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+      const nick = args[0]
+      const reason = args[1] || nick
+
+      // Fetch ident@host via USERHOST for a proper ban mask
+      const onReply = (event: { command: string; params: string[] }) => {
+        if (event.command !== "302") return
+        client.off("unknown command", onReply)
+        clearTimeout(timer)
+
+        // RPL_USERHOST format: "nick[*]=<+|->ident@host"
+        const reply = event.params.slice(1).join(" ")
+        const match = reply.match(/=[-+](\S+)@(\S+)/)
+
+        // Kick first, then ban
+        client.raw(`KICK ${channel} ${nick} :${reason}`)
+        if (match) {
+          client.raw(`MODE ${channel} +b *!*${match[1]}@${match[2]}`)
+        } else {
+          client.raw(`MODE ${channel} +b ${nick}!*@*`)
+        }
+      }
+
+      client.on("unknown command", onReply)
+      client.raw(`USERHOST ${nick}`)
+
+      // Fallback: if no USERHOST reply in 5s, kick+ban with nick-based mask
+      const timer = setTimeout(() => {
+        client.off("unknown command", onReply)
+        client.raw(`KICK ${channel} ${nick} :${reason}`)
+        client.raw(`MODE ${channel} +b ${nick}!*@*`)
+      }, 5000)
+    },
+    description: "Kickban a user (kick then ban *!*ident@host)",
+    usage: "/kb <nick> [reason]",
+    aliases: ["kickban"],
   },
 
   disconnect: {

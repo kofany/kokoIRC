@@ -140,6 +140,104 @@ declare module "irc-framework" {
     message?: string
     error?: string
     reason?: string
+    nick?: string
+    channel?: string
+    command?: string
+    server?: string
+    target_group?: string
+  }
+
+  export interface MotdEvent {
+    motd: string
+    error?: string
+    tags?: Record<string, string>
+  }
+
+  export interface AwayEvent {
+    self?: boolean
+    nick?: string
+    message?: string
+    tags?: Record<string, string>
+  }
+
+  export interface BackEvent {
+    self?: boolean
+    nick?: string
+    message?: string
+    tags?: Record<string, string>
+  }
+
+  export interface ChannelRedirectEvent {
+    from: string
+    to: string
+  }
+
+  export interface InviteEvent {
+    nick: string
+    ident?: string
+    hostname?: string
+    channel: string
+    time?: number
+    tags?: Record<string, string>
+  }
+
+  export interface InvitedEvent {
+    nick: string
+    channel: string
+    tags?: Record<string, string>
+  }
+
+  export interface LoggedInEvent {
+    nick: string
+    ident?: string
+    hostname?: string
+    account: string
+    time?: number
+    tags?: Record<string, string>
+  }
+
+  export interface DisplayedHostEvent {
+    nick: string
+    hostname: string
+    tags?: Record<string, string>
+  }
+
+  export interface WhowasEvent {
+    nick: string
+    error?: boolean
+    ident?: string
+    hostname?: string
+    real_name?: string
+  }
+
+  export interface BanListEvent {
+    channel: string
+    bans: Array<{
+      banned: string
+      banned_by: string
+      banned_at: number
+      tags?: Record<string, string>
+    }>
+    tags?: Record<string, string>
+  }
+
+  export interface WallopsEvent {
+    from_server: boolean
+    nick: string
+    ident?: string
+    hostname?: string
+    message: string
+    tags?: Record<string, string>
+  }
+
+  export interface UnknownCommandEvent {
+    command: string
+    params: string[]
+    tags?: Record<string, string>
+    prefix?: string
+    nick?: string
+    ident?: string
+    hostname?: string
   }
 
   export interface SocketErrorEvent {
@@ -205,6 +303,18 @@ declare module "irc-framework" {
     on(event: "reconnecting", handler: (event: ReconnectingEvent) => void): void
     on(event: "error", handler: (event: IrcErrorEvent) => void): void
     on(event: "irc error", handler: (event: IrcErrorEvent) => void): void
+    on(event: "motd", handler: (event: MotdEvent) => void): void
+    on(event: "away", handler: (event: AwayEvent) => void): void
+    on(event: "back", handler: (event: BackEvent) => void): void
+    on(event: "channel_redirect", handler: (event: ChannelRedirectEvent) => void): void
+    on(event: "invite", handler: (event: InviteEvent) => void): void
+    on(event: "invited", handler: (event: InvitedEvent) => void): void
+    on(event: "loggedin", handler: (event: LoggedInEvent) => void): void
+    on(event: "displayed host", handler: (event: DisplayedHostEvent) => void): void
+    on(event: "whowas", handler: (event: WhowasEvent) => void): void
+    on(event: "banlist", handler: (event: BanListEvent) => void): void
+    on(event: "wallops", handler: (event: WallopsEvent) => void): void
+    on(event: "unknown command", handler: (event: UnknownCommandEvent) => void): void
     on(event: "pong", handler: () => void): void
     on(event: "close", handler: () => void): void
     on(event: "socket connected", handler: () => void): void

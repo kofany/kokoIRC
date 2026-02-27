@@ -1,5 +1,5 @@
 import { useStore } from "@/core/state/store"
-import { makeBufferId } from "@/types"
+import { makeBufferId, BufferType } from "@/types"
 import type { AppConfig } from "@/types/config"
 import { CREDENTIAL_FIELDS } from "./types"
 import type { ResolvedConfig } from "./types"
@@ -16,6 +16,14 @@ export function addLocalEvent(text: string) {
     text,
     highlight: false,
   })
+}
+
+/** Get the channel name from the active buffer (if it's a channel buffer). */
+export function getActiveChannel(): string | null {
+  const s = useStore.getState()
+  const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
+  if (!buf || buf.type !== BufferType.Channel) return null
+  return buf.name
 }
 
 /** Switch to a connection's Status buffer. */

@@ -92,3 +92,30 @@ export function getNickMode(buffers: Map<string, Buffer>, bufferId: string, nick
   const buf = buffers.get(bufferId)
   return buf?.users.get(nick)?.prefix ?? ""
 }
+
+/**
+ * Extract mode character ordering from ISUPPORT PREFIX (highest rank first).
+ * e.g. "(qaohv)~&@%+" → "qaohv"
+ */
+export function buildModeOrder(isupportPrefix: unknown): string {
+  if (typeof isupportPrefix === "string") {
+    const match = isupportPrefix.match(/^\(([^)]+)\)/)
+    if (match) return match[1]
+  }
+  return "qaohv" // default rank order
+}
+
+/**
+ * Compute the displayed prefix from a set of raw mode chars.
+ * Returns the prefix symbol of the highest-ranked mode the user holds.
+ */
+export function getHighestPrefix(
+  modes: string,
+  modeOrder: string,
+  prefixMap: Record<string, string>,
+): string {
+  for (const ch of modeOrder) {
+    if (modes.includes(ch)) return prefixMap[ch] ?? ""
+  }
+  return ""
+}

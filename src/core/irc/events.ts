@@ -2,7 +2,7 @@ import type { Client } from "irc-framework"
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
 import type { Message } from "@/types"
-import { formatDuration, formatDate, buildModeString, buildPrefixMap, getNickMode } from "./formatting"
+import { formatDuration, formatDate, buildModeString, buildPrefixMap, buildModeOrder, getHighestPrefix, getNickMode } from "./formatting"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
@@ -69,7 +69,7 @@ export function bindEvents(client: Client, connectionId: string) {
         users: new Map(),
       })
     } else {
-      s.addNick(bufferId, { nick: event.nick, prefix: "", away: false, account: event.account })
+      s.addNick(bufferId, { nick: event.nick, prefix: "", modes: "", away: false, account: event.account })
       s.addMessage(bufferId, makeFormattedEvent("join", [
         event.nick, event.ident || "", event.hostname || "", event.channel,
       ]))
@@ -266,14 +266,28 @@ export function bindEvents(client: Client, connectionId: string) {
 
     const conn = getStore().connections.get(connectionId)
     const prefixMap = buildPrefixMap(conn?.isupport?.PREFIX)
+    const modeOrder = buildModeOrder(conn?.isupport?.PREFIX)
 
     for (const user of event.users) {
-      const rawMode = user.modes?.[0] ?? ""
-      // irc-framework may give mode chars (o,v) or prefix symbols (@,+)
-      const prefix = prefixMap[rawMode] ?? rawMode
+      // irc-framework gives modes as array of chars (["o","v"]) or prefix symbols (["@","+"])
+      // Normalize to mode chars and store all of them
+      const rawModes = (user.modes ?? [])
+        .map((m) => {
+          // If it's already a mode char in the order list, keep it
+          if (modeOrder.includes(m)) return m
+          // Otherwise it's a prefix symbol — reverse-lookup
+          for (const [modeChar, sym] of Object.entries(prefixMap)) {
+            if (sym === m && modeOrder.includes(modeChar)) return modeChar
+          }
+          return ""
+        })
+        .filter(Boolean)
+        .join("")
+      const prefix = getHighestPrefix(rawModes, modeOrder, prefixMap)
       getStore().addNick(bufferId, {
         nick: user.nick,
         prefix,
+        modes: rawModes,
         away: !!user.away,
         account: user.account,
       })
@@ -295,21 +309,30 @@ export function bindEvents(client: Client, connectionId: string) {
     if (!Array.isArray(event.modes)) return
     const conn = getStore().connections.get(connectionId)
     const prefixMap = buildPrefixMap(conn?.isupport?.PREFIX)
+    const modeOrder = buildModeOrder(conn?.isupport?.PREFIX)
 
     for (const mc of event.modes) {
       if (!mc.param) continue
       const isAdding = mc.mode.startsWith("+")
       const modeChar = mc.mode.replace(/[+-]/, "")
-      const prefix = prefixMap[modeChar]
-      if (!prefix) continue // not a nick prefix mode
+      if (!modeOrder.includes(modeChar)) continue // not a nick prefix mode
 
       const buf = getStore().buffers.get(bufferId)
       const entry = buf?.users.get(mc.param)
       if (!entry) continue
 
+      // Add or remove this specific mode char from the user's modes string
+      let modes = entry.modes ?? ""
+      if (isAdding && !modes.includes(modeChar)) {
+        modes += modeChar
+      } else if (!isAdding) {
+        modes = modes.replace(modeChar, "")
+      }
+
       getStore().addNick(bufferId, {
         ...entry,
-        prefix: isAdding ? prefix : "",
+        modes,
+        prefix: getHighestPrefix(modes, modeOrder, prefixMap),
       })
     }
   })
@@ -349,9 +372,26 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("irc error", (event) => {
-    console.error(`[${connectionId}] IRC protocol error:`, event)
-    const reason = event.reason || event.error || event.message || JSON.stringify(event)
-    statusMsg(`%Zf7768eIRC error: ${reason}%N`)
+    const s = getStore()
+
+    // Route to channel buffer if available
+    let targetBuffer = statusId
+    if (event.channel) {
+      const chanBufferId = makeBufferId(connectionId, event.channel)
+      if (s.buffers.has(chanBufferId)) {
+        targetBuffer = chanBufferId
+      }
+    }
+
+    // Build message with context
+    const prefix = event.nick ? `${event.nick}: `
+      : event.channel ? `${event.channel}: `
+      : ""
+    const reason = event.reason
+      || event.message
+      || (event.error ? event.error.replace(/_/g, " ") : "Unknown error")
+
+    s.addMessage(targetBuffer, makeEventMessage(`%Zf7768e${prefix}${reason}%N`))
   })
 
   // Nick in use — irc-framework does NOT auto-retry, we must send alternate nick
@@ -382,6 +422,160 @@ export function bindEvents(client: Client, connectionId: string) {
   client.on("server options", (event) => {
     const s = getStore()
     s.updateConnection(connectionId, { isupport: event.options || {} })
+  })
+
+  // ─── MOTD ──────────────────────────────────────────────────
+  client.on("motd", (event) => {
+    if (event.error) {
+      statusMsg(`%Z565f89${event.error}%N`)
+      return
+    }
+    if (!event.motd) return
+    for (const line of event.motd.split("\n")) {
+      if (line.trim()) statusMsg(`%Z565f89${line}%N`)
+    }
+  })
+
+  // ─── Away / Back ───────────────────────────────────────────
+  client.on("away", (event) => {
+    const s = getStore()
+    if (event.self) {
+      statusMsg(`%Z565f89You are now marked as away${event.message ? ": " + event.message : ""}%N`)
+      return
+    }
+    if (!event.nick) return
+
+    // Update nick away status in all shared channels
+    for (const [bufId, buf] of s.buffers) {
+      if (buf.connectionId === connectionId && buf.users.has(event.nick)) {
+        const entry = buf.users.get(event.nick)!
+        getStore().addNick(bufId, { ...entry, away: true })
+      }
+    }
+
+    // Show in query buffer if we have one open (RPL_AWAY response to messaging)
+    const queryId = makeBufferId(connectionId, event.nick)
+    if (s.buffers.has(queryId)) {
+      s.addMessage(queryId, makeEventMessage(
+        `%Z565f89${event.nick} is away${event.message ? ": " + event.message : ""}%N`
+      ))
+    }
+  })
+
+  client.on("back", (event) => {
+    const s = getStore()
+    if (event.self) {
+      statusMsg(`%Z565f89You are no longer marked as away%N`)
+      return
+    }
+    if (!event.nick) return
+
+    // Update nick away status in all shared channels
+    for (const [bufId, buf] of s.buffers) {
+      if (buf.connectionId === connectionId && buf.users.has(event.nick)) {
+        const entry = buf.users.get(event.nick)!
+        getStore().addNick(bufId, { ...entry, away: false })
+      }
+    }
+  })
+
+  // ─── Channel redirect ─────────────────────────────────────
+  client.on("channel_redirect", (event) => {
+    statusMsg(`%Ze0af68${event.from} is redirecting to ${event.to}%N`)
+  })
+
+  // ─── Invite ────────────────────────────────────────────────
+  client.on("invite", (event) => {
+    const s = getStore()
+    const target = s.activeBufferId ?? statusId
+    s.addMessage(target, makeEventMessage(
+      `%Zbb9af7${event.nick} invites you to ${event.channel}%N`
+    ))
+  })
+
+  client.on("invited", (event) => {
+    const s = getStore()
+    const bufferId = makeBufferId(connectionId, event.channel)
+    const target = s.buffers.has(bufferId) ? bufferId : statusId
+    s.addMessage(target, makeEventMessage(
+      `%Z9ece6aInviting ${event.nick} to ${event.channel}%N`
+    ))
+  })
+
+  // ─── Ban list ──────────────────────────────────────────────
+  client.on("banlist", (event) => {
+    const s = getStore()
+    const bufferId = makeBufferId(connectionId, event.channel)
+    const target = s.buffers.has(bufferId) ? bufferId : statusId
+
+    if (event.bans.length === 0) {
+      s.addMessage(target, makeEventMessage(
+        `%Z565f89${event.channel}: Ban list is empty%N`
+      ))
+      return
+    }
+
+    s.addMessage(target, makeEventMessage(
+      `%Z7aa2f7───── Ban list for ${event.channel} ─────%N`
+    ))
+    for (const ban of event.bans) {
+      const by = ban.banned_by ? ` set by ${ban.banned_by}` : ""
+      const at = ban.banned_at ? ` [${formatDate(new Date(ban.banned_at * 1000))}]` : ""
+      getStore().addMessage(target, makeEventMessage(
+        `%Za9b1d6  ${ban.banned}%Z565f89${by}${at}%N`
+      ))
+    }
+  })
+
+  // ─── Login / Account ───────────────────────────────────────
+  client.on("loggedin", (event) => {
+    statusMsg(`%Z9ece6aLogged in as %Zc0caf5${event.account}%N`)
+  })
+
+  // ─── Displayed host ────────────────────────────────────────
+  client.on("displayed host", (event) => {
+    statusMsg(`%Z565f89Your displayed host is now %Za9b1d6${event.hostname}%N`)
+  })
+
+  // ─── Wallops ───────────────────────────────────────────────
+  client.on("wallops", (event) => {
+    const from = event.from_server ? "Server" : event.nick
+    statusMsg(`%Zbb9af7[Wallops/${from}] ${event.message}%N`)
+  })
+
+  // ─── Catch-all for unhandled numerics ──────────────────────
+  client.on("unknown command", (command) => {
+    // Only handle IRC numerics (3-digit codes)
+    if (!/^\d{3}$/.test(command.command)) return
+
+    const numeric = parseInt(command.command, 10)
+    const params = [...command.params]
+
+    // First param is usually our nick — skip it
+    if (params.length > 1) params.shift()
+
+    const text = params.join(" ")
+    if (!text.trim()) return
+
+    const isError = numeric >= 400 && numeric < 600
+    const s = getStore()
+
+    if (isError) {
+      // Route channel errors to the channel buffer
+      let targetBuffer = statusId
+      for (const p of params) {
+        if (isChannelTarget(p)) {
+          const chanBufferId = makeBufferId(connectionId, p)
+          if (s.buffers.has(chanBufferId)) {
+            targetBuffer = chanBufferId
+            break
+          }
+        }
+      }
+      s.addMessage(targetBuffer, makeEventMessage(`%Zf7768e${text}%N`))
+    } else {
+      statusMsg(`%Z565f89${text}%N`)
+    }
   })
 
   // ─── Whois response ──────────────────────────────────────
@@ -451,6 +645,36 @@ export function bindEvents(client: Client, connectionId: string) {
       for (const line of specials) {
         lines.push(`  %Zbb9af7${line}%N`)
       }
+    }
+
+    lines.push(`%Z7aa2f7─────────────────────────────────────────────%N`)
+
+    for (const line of lines) {
+      getStore().addMessage(targetBuffer, makeEventMessage(line))
+    }
+  })
+
+  // ─── Whowas response ──────────────────────────────────────
+  client.on("whowas", (event) => {
+    const s = getStore()
+    const targetBuffer = s.activeBufferId ?? statusId
+
+    if (event.error) {
+      s.addMessage(targetBuffer, makeEventMessage(
+        `%Zf7768e${event.nick}: No such nick in history%N`
+      ))
+      return
+    }
+
+    const lines: string[] = []
+    lines.push(`%Z7aa2f7───── WHOWAS ${event.nick} ──────────────────────────%N`)
+
+    if (event.ident && event.hostname) {
+      lines.push(`%Zc0caf5${event.nick}%Z565f89 was (${event.ident}@${event.hostname})%N`)
+    }
+
+    if (event.real_name) {
+      lines.push(`  %Za9b1d6${event.real_name}%N`)
     }
 
     lines.push(`%Z7aa2f7─────────────────────────────────────────────%N`)

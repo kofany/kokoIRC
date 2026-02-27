@@ -1,7 +1,7 @@
 [general]
-nick = "kofany`"
-username = "kofany"
-realname = "OpenTUI IRC"
+nick = "maxedIRC"
+username = "maxedIRC"
+realname = "maxed irc client"
 theme = "default"
 timestamp_format = "%H:%M:%S"
 
@@ -14,7 +14,7 @@ show_timestamps = true
 scrollback_lines = 2000
 
 [sidepanel.left]
-width = 20
+width = 18
 visible = true
 
 [sidepanel.right]
@@ -23,21 +23,9 @@ visible = true
 
 [statusbar]
 enabled = true
-items = ["active_windows", "nick_info", "channel_info", "lag"]
+items = [ "active_windows", "nick_info", "channel_info", "lag" ]
 separator = " | "
-
-# Colors — leave empty "" to inherit from theme
-# background = "#16161e"
-# accent_color = "#7aa2f7"
-# text_color = "#a9b1d6"
-# muted_color = "#565f89"
-# dim_color = "#292e42"
-
-# Input line
-prompt = "[$channel]❱"
-# prompt_color = "#7aa2f7"
-# input_color = "#c0caf5"
-# cursor_color = "#7aa2f7"
+prompt = "⠻$channel⠟ "
 
 [servers.ircnet]
 label = "IRCnet"
@@ -45,4 +33,8 @@ address = "sasl.irc.atw.hu"
 port = 6697
 tls = true
 autoconnect = true
-channels = ["#xxx", "#tahio"]
+channels = [ "#sqrwiele", "#dupai" ]
+sasl_user = "kofany"
+
+[aliases]
+wc = "/close"
