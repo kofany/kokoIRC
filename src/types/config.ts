@@ -62,8 +62,18 @@ export interface ServerConfig {
   address: string
   port: number
   tls: boolean
+  tls_verify: boolean
   autoconnect: boolean
   channels: string[]
+  nick?: string              // per-server nick override (falls back to general.nick)
+  username?: string           // per-server username override
+  realname?: string           // per-server realname override
+  password?: string           // server password (PASS command)
   sasl_user?: string
   sasl_pass?: string
+  bind_ip?: string            // local IP to bind (vhost)
+  encoding?: string           // character encoding (default: utf8)
+  auto_reconnect?: boolean    // auto reconnect on disconnect (default: true)
+  reconnect_delay?: number    // seconds between reconnect attempts (default: 30)
+  reconnect_max_retries?: number // max reconnect attempts (default: 10)
 }

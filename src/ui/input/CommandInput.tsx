@@ -165,9 +165,10 @@ export function CommandInput() {
     }
   })
 
-  // Build prompt from config template: $channel, $nick, $buffer
+  // Build prompt from config template: $channel, $nick, $buffer, $server
   const promptTemplate = sb.prompt
   const prompt = promptTemplate
+    .replace("$server", conn?.label ?? "")
     .replace("$channel", buffer?.name ?? "")
     .replace("$nick", conn?.nick ?? "")
     .replace("$buffer", buffer?.name ?? "")

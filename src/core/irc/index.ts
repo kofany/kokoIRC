@@ -1,1 +1,1 @@
-export { connectServer, disconnectServer, getClient, connectAllAutoconnect } from "./client"
+export { connectServer, disconnectServer, getClient, getAllClientIds, connectAllAutoconnect } from "./client"

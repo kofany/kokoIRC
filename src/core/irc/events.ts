@@ -8,24 +8,35 @@ function isChannelTarget(target: string): boolean {
 
 export function bindEvents(client: any, connectionId: string) {
   const getStore = () => useStore.getState()
+  const statusId = makeBufferId(connectionId, "Status")
 
+  /** Safely add a message to the Status buffer (must exist). */
+  function statusMsg(text: string) {
+    getStore().addMessage(statusId, makeEventMessage(text))
+  }
+
+  // ─── Socket-level events ─────────────────────────────────
+  client.on("socket connected", () => {
+    statusMsg("%Z9ece6aSocket connected, registering...%N")
+  })
+
+  client.on("socket error", (err: any) => {
+    console.error(`[${connectionId}] Socket error:`, err)
+    getStore().updateConnection(connectionId, { status: "error" })
+    statusMsg(`%Zf7768eSocket error: ${err?.message ?? err}%N`)
+  })
+
+  client.on("socket close", (hadError: any) => {
+    if (hadError) {
+      statusMsg(`%Zf7768eSocket closed with error%N`)
+    }
+  })
+
+  // ─── Registration ─────────────────────────────────────────
   client.on("registered", (event: any) => {
     const s = getStore()
     s.updateConnection(connectionId, { status: "connected", nick: event.nick })
-    s.addBuffer({
-      id: makeBufferId(connectionId, "Status"),
-      connectionId,
-      type: BufferType.Server,
-      name: "Status",
-      messages: [],
-      activity: ActivityLevel.None,
-      unreadCount: 0,
-      lastRead: new Date(),
-      users: new Map(),
-    })
-    if (!s.activeBufferId) {
-      s.setActiveBuffer(makeBufferId(connectionId, "Status"))
-    }
+    statusMsg(`%Z9ece6aRegistered as %Zc0caf5${event.nick}%N`)
     // Auto-join channels from config
     const config = s.config
     if (config) {
@@ -319,34 +330,50 @@ export function bindEvents(client: any, connectionId: string) {
 
   client.on("close", () => {
     clearInterval(lagPingInterval)
-    const s = getStore()
-    s.updateConnection(connectionId, { status: "disconnected" })
-    s.addMessage(makeBufferId(connectionId, "Status"), makeEventMessage("%Zf7768eDisconnected from server%N"))
+    getStore().updateConnection(connectionId, { status: "disconnected" })
+    statusMsg("%Zf7768eDisconnected from server%N")
   })
 
-  client.on("reconnecting", () => {
-    const s = getStore()
-    s.updateConnection(connectionId, { status: "connecting" })
-    s.addMessage(makeBufferId(connectionId, "Status"), makeEventMessage("%Ze0af68Reconnecting...%N"))
+  client.on("reconnecting", (event: any) => {
+    getStore().updateConnection(connectionId, { status: "connecting" })
+    const attempt = event?.attempt ?? "?"
+    const max = event?.max_retries ?? "?"
+    statusMsg(`%Ze0af68Reconnecting (attempt ${attempt}/${max})...%N`)
   })
 
   client.on("error", (event: any) => {
     console.error(`[${connectionId}] IRC error:`, event)
-    const s = getStore()
-    const statusId = makeBufferId(connectionId, "Status")
-    if (s.buffers.has(statusId)) {
-      s.addMessage(statusId, makeEventMessage(`%Zf7768eError: ${event.message || event.error || JSON.stringify(event)}%N`))
-    }
-  })
-
-  client.on("socket error", (err: any) => {
-    console.error(`[${connectionId}] Socket error:`, err)
-    const s = getStore()
-    s.updateConnection(connectionId, { status: "error" })
+    statusMsg(`%Zf7768eError: ${event.message || event.error || JSON.stringify(event)}%N`)
   })
 
   client.on("irc error", (event: any) => {
     console.error(`[${connectionId}] IRC protocol error:`, event)
+    const reason = event.reason || event.error || event.message || JSON.stringify(event)
+    statusMsg(`%Zf7768eIRC error: ${reason}%N`)
+  })
+
+  // Nick in use — irc-framework does NOT auto-retry, we must send alternate nick
+  let nickRetries = 0
+  client.on("nick in use", (event: any) => {
+    nickRetries++
+    if (nickRetries > 5) {
+      statusMsg(`%Zf7768eCould not find available nick after 5 attempts%N`)
+      return
+    }
+    const newNick = event.nick + "_"
+    statusMsg(`%Ze0af68Nick ${event.nick} is already in use, trying ${newNick}...%N`)
+    client.changeNick(newNick)
+    getStore().updateConnection(connectionId, { nick: newNick })
+  })
+
+  // Invalid nick
+  client.on("nick invalid", (event: any) => {
+    statusMsg(`%Zf7768eNick ${event.nick} is invalid: ${event.reason}%N`)
+  })
+
+  // SASL failure
+  client.on("sasl failed", (event: any) => {
+    statusMsg(`%Zf7768eSASL authentication failed: ${event.reason}${event.message ? " — " + event.message : ""}%N`)
   })
 
   // Store ISUPPORT/server options

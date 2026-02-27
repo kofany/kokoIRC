@@ -1,8 +1,9 @@
-import { getClient } from "@/core/irc"
+import { getClient, connectServer, disconnectServer, getAllClientIds } from "@/core/irc"
 import { useStore } from "@/core/state/store"
-import { loadConfig } from "@/core/config/loader"
+import { loadConfig, saveConfig, saveCredentialsToEnv } from "@/core/config/loader"
 import { loadTheme } from "@/core/theme/loader"
 import { makeBufferId, BufferType } from "@/types"
+import type { ServerConfig } from "@/types/config"
 import type { ParsedCommand } from "./parser"
 
 type Handler = (args: string[], connectionId: string) => void
@@ -26,6 +27,15 @@ function addLocalEvent(text: string) {
     text,
     highlight: false,
   })
+}
+
+/** Switch to a connection's Status buffer. */
+function switchToStatusBuffer(connId: string) {
+  const s = useStore.getState()
+  const statusId = makeBufferId(connId, "Status")
+  if (s.buffers.has(statusId)) {
+    s.setActiveBuffer(statusId)
+  }
 }
 
 // ─── Command Registry ────────────────────────────────────────
@@ -259,6 +269,455 @@ export const commands: Record<string, CommandDef> = {
     description: "Reload theme and config",
     usage: "/reload",
   },
+
+  server: {
+    async handler(args) {
+      const sub = args[0]?.toLowerCase()
+
+      if (!sub || sub === "list") {
+        // /server list — show all configured servers and their status
+        const s = useStore.getState()
+        const servers = s.config?.servers ?? {}
+        addLocalEvent(`%Z7aa2f7───── Servers ─────────────────────────────%N`)
+        if (Object.keys(servers).length === 0) {
+          addLocalEvent(`  %Z565f89No servers configured%N`)
+        } else {
+          for (const [id, srv] of Object.entries(servers)) {
+            const conn = s.connections.get(id)
+            const status = conn?.status ?? "disconnected"
+            const statusColor = status === "connected" ? "#9ece6a"
+              : status === "connecting" ? "#e0af68" : "#f7768e"
+            const bindInfo = srv.bind_ip ? ` %Z565f89bind:${srv.bind_ip}%N` : ""
+            addLocalEvent(
+              `  %Z7aa2f7${id.padEnd(12)}%N %Za9b1d6${srv.label}%N %Z565f89(${srv.address}:${srv.port})%N %Z${statusColor.slice(1)}${status}%N${bindInfo}`
+            )
+          }
+        }
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
+        return
+      }
+
+      if (sub === "add") {
+        // /server add <id> <address>[:<port>] [options...]
+        // Options: -tls -noauto -bind=<ip> -nick=<nick> -password=<pass> -sasl=<user>:<pass> -label=<label>
+        const id = args[1]?.toLowerCase()
+        const addrArg = args[2]
+        if (!id || !addrArg) {
+          addLocalEvent(`%Zf7768eUsage: /server add <id> <address>[:<port>] [-tls] [-noauto] [-bind=<ip>] [-label=<name>] [-password=<pass>] [-sasl=<user>:<pass>]%N`)
+          return
+        }
+
+        // Parse address:port
+        let address = addrArg
+        let port = 6667
+        let tls = false
+        const colonIdx = addrArg.lastIndexOf(":")
+        if (colonIdx > 0) {
+          const portStr = addrArg.slice(colonIdx + 1)
+          if (/^\d+$/.test(portStr)) {
+            address = addrArg.slice(0, colonIdx)
+            port = parseInt(portStr, 10)
+          }
+        }
+
+        // Parse flags
+        let autoconnect = true
+        let bind_ip: string | undefined
+        let nick: string | undefined
+        let password: string | undefined
+        let sasl_user: string | undefined
+        let sasl_pass: string | undefined
+        let label = id
+        let tls_verify = true
+
+        for (let i = 3; i < args.length; i++) {
+          const a = args[i]
+          if (a === "-tls") { tls = true; if (port === 6667) port = 6697 }
+          else if (a === "-noauto") autoconnect = false
+          else if (a === "-notlsverify") tls_verify = false
+          else if (a.startsWith("-bind=")) bind_ip = a.slice(6)
+          else if (a.startsWith("-nick=")) nick = a.slice(6)
+          else if (a.startsWith("-password=")) password = a.slice(10)
+          else if (a.startsWith("-label=")) label = a.slice(7)
+          else if (a.startsWith("-sasl=")) {
+            const saslParts = a.slice(6).split(":")
+            sasl_user = saslParts[0]
+            sasl_pass = saslParts.slice(1).join(":")
+          }
+        }
+
+        const serverConfig: ServerConfig = {
+          label,
+          address,
+          port,
+          tls,
+          tls_verify,
+          autoconnect,
+          channels: [],
+          nick,
+          bind_ip,
+          sasl_user,
+        }
+
+        // Save to config
+        const s = useStore.getState()
+        const config = s.config
+        if (!config) return
+        config.servers[id] = serverConfig
+        s.setConfig({ ...config })
+
+        try {
+          await saveConfig("config/config.toml", config)
+          // Save credentials to .env
+          if (password || sasl_pass) {
+            await saveCredentialsToEnv(id, { password, sasl_pass, sasl_user })
+          }
+          addLocalEvent(`%Z9ece6aServer '${id}' added: ${address}:${port}${tls ? " (TLS)" : ""}${bind_ip ? " bind:" + bind_ip : ""}%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save config: ${err.message}%N`)
+        }
+        return
+      }
+
+      if (sub === "remove" || sub === "del") {
+        const id = args[1]?.toLowerCase()
+        if (!id) {
+          addLocalEvent(`%Zf7768eUsage: /server remove <id>%N`)
+          return
+        }
+        const s = useStore.getState()
+        const config = s.config
+        if (!config || !config.servers[id]) {
+          addLocalEvent(`%Zf7768eServer '${id}' not found%N`)
+          return
+        }
+
+        // Disconnect if connected
+        disconnectServer(id, "Server removed")
+
+        delete config.servers[id]
+        s.setConfig({ ...config })
+
+        try {
+          await saveConfig("config/config.toml", config)
+          addLocalEvent(`%Z9ece6aServer '${id}' removed%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save config: ${err.message}%N`)
+        }
+        return
+      }
+
+      addLocalEvent(`%Zf7768eUnknown subcommand: /server ${sub}. Use: list, add, remove%N`)
+    },
+    description: "Manage servers (add/list/remove)",
+    usage: "/server [list|add|remove] [args...]",
+  },
+
+  connect: {
+    handler(args) {
+      const target = args[0]
+      if (!target) {
+        addLocalEvent(`%Zf7768eUsage: /connect <server-id|address>[:<port>] [-tls] [-bind=<ip>]%N`)
+        return
+      }
+
+      const s = useStore.getState()
+      const config = s.config
+      if (!config) return
+
+      // First try matching by server id (label)
+      const serverId = target.toLowerCase()
+      let serverConfig = config.servers[serverId]
+
+      if (!serverConfig) {
+        // Try matching by label
+        for (const [id, srv] of Object.entries(config.servers)) {
+          if (srv.label.toLowerCase() === serverId) {
+            serverConfig = srv
+            connectServer(id, srv)
+            switchToStatusBuffer(id)
+            return
+          }
+        }
+      }
+
+      if (serverConfig) {
+        // Apply runtime overrides from flags
+        const overrides: Partial<ServerConfig> = {}
+        for (let i = 1; i < args.length; i++) {
+          const a = args[i]
+          if (a === "-tls") overrides.tls = true
+          else if (a.startsWith("-bind=")) overrides.bind_ip = a.slice(6)
+        }
+        const merged = { ...serverConfig, ...overrides }
+        connectServer(serverId, merged)
+        switchToStatusBuffer(serverId)
+        return
+      }
+
+      // Not in config — treat as ad-hoc address
+      let address = target
+      let port = 6667
+      let tls = false
+      const colonIdx = target.lastIndexOf(":")
+      if (colonIdx > 0) {
+        const portStr = target.slice(colonIdx + 1)
+        if (/^\d+$/.test(portStr)) {
+          address = target.slice(0, colonIdx)
+          port = parseInt(portStr, 10)
+        }
+      }
+
+      let bind_ip: string | undefined
+      for (let i = 1; i < args.length; i++) {
+        const a = args[i]
+        if (a === "-tls") { tls = true; if (port === 6667) port = 6697 }
+        else if (a.startsWith("-bind=")) bind_ip = a.slice(6)
+      }
+
+      // Generate temporary id from address
+      const tempId = address.replace(/[^a-zA-Z0-9]/g, "_")
+      const adhocConfig: ServerConfig = {
+        label: address,
+        address,
+        port,
+        tls,
+        tls_verify: true,
+        autoconnect: false,
+        channels: [],
+        bind_ip,
+      }
+
+      connectServer(tempId, adhocConfig)
+      switchToStatusBuffer(tempId)
+    },
+    description: "Connect to a server by id, label, or address",
+    usage: "/connect <server-id|address>[:<port>] [-tls] [-bind=<ip>]",
+    aliases: ["c"],
+  },
+
+  set: {
+    async handler(args) {
+      const s = useStore.getState()
+      const config = s.config
+      if (!config) return
+
+      // /set — list all settings
+      if (args.length === 0) {
+        listAllSettings(config)
+        return
+      }
+
+      const path = args[0]
+
+      // /set <path> — show current value
+      const resolved = getConfigValue(config, path)
+      if (!resolved) {
+        addLocalEvent(`%Zf7768eUnknown setting: ${path}%N`)
+        return
+      }
+
+      if (!args[1]) {
+        const display = resolved.isCredential ? "***" : formatValue(resolved.value)
+        const envTag = resolved.isCredential ? " %Z565f89[.env]%N" : ""
+        addLocalEvent(`%Z7aa2f7${path}%N = %Zc0caf5${display}%N${envTag}`)
+        return
+      }
+
+      // /set <path> <value> — set value
+      const rawValue = args[1]
+      const coerced = coerceValue(rawValue, resolved.value)
+      if (coerced === undefined) {
+        addLocalEvent(`%Zf7768eCannot coerce '${rawValue}' to ${typeof resolved.value}%N`)
+        return
+      }
+
+      // Apply in-memory
+      setConfigValue(config, path, coerced)
+      s.setConfig({ ...config })
+
+      // Persist
+      try {
+        if (resolved.isCredential && resolved.serverId) {
+          const creds: Record<string, string | undefined> = {}
+          creds[resolved.field] = String(coerced)
+          await saveCredentialsToEnv(resolved.serverId, creds)
+          addLocalEvent(`%Z9ece6a${path}%N = %Zc0caf5***%N %Z565f89[saved to .env]%N`)
+        } else {
+          await saveConfig("config/config.toml", config)
+          addLocalEvent(`%Z9ece6a${path}%N = %Zc0caf5${formatValue(coerced)}%N`)
+        }
+
+        // Theme change → auto-reload
+        if (path === "general.theme") {
+          const themePath = `themes/${coerced}.theme`
+          const theme = await loadTheme(themePath)
+          s.setTheme(theme)
+          addLocalEvent(`%Z9ece6aTheme '${coerced}' loaded%N`)
+        }
+      } catch (err: any) {
+        addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+      }
+    },
+    description: "View or change configuration",
+    usage: "/set [section.field] [value]",
+  },
+
+  disconnect: {
+    handler(args, connId) {
+      const target = args[0]?.toLowerCase()
+      const message = args.slice(1).join(" ") || "Leaving"
+
+      if (target) {
+        // Disconnect specific server
+        const s = useStore.getState()
+        if (s.connections.has(target)) {
+          disconnectServer(target, message)
+          addLocalEvent(`%Ze0af68Disconnected from ${target}%N`)
+        } else {
+          // Try by label
+          for (const [id, conn] of s.connections) {
+            if (conn.label.toLowerCase() === target) {
+              disconnectServer(id, message)
+              addLocalEvent(`%Ze0af68Disconnected from ${conn.label}%N`)
+              return
+            }
+          }
+          addLocalEvent(`%Zf7768eServer '${target}' not found%N`)
+        }
+      } else {
+        // Disconnect current server
+        disconnectServer(connId, message)
+        addLocalEvent(`%Ze0af68Disconnected from current server%N`)
+      }
+    },
+    description: "Disconnect from a server",
+    usage: "/disconnect [server-id] [message]",
+  },
+}
+
+// ─── /set helpers ───────────────────────────────────────────
+
+const CREDENTIAL_FIELDS = new Set(["password", "sasl_pass"])
+
+interface ResolvedConfig {
+  value: any
+  field: string
+  isCredential: boolean
+  serverId?: string
+}
+
+/** Resolve a dot-path like "general.nick" or "servers.ircnet.port" to the config value. */
+function getConfigValue(config: import("@/types/config").AppConfig, path: string): ResolvedConfig | null {
+  const parts = path.split(".")
+  if (parts.length < 2) return null
+
+  const section = parts[0]
+
+  // servers.<id>.<field>
+  if (section === "servers") {
+    if (parts.length < 3) return null
+    const serverId = parts[1]
+    const field = parts.slice(2).join(".")
+    const server = config.servers[serverId]
+    if (!server || !(field in server)) return null
+    return {
+      value: (server as any)[field],
+      field,
+      isCredential: CREDENTIAL_FIELDS.has(field),
+      serverId,
+    }
+  }
+
+  // sidepanel.left.<field> / sidepanel.right.<field>
+  if (section === "sidepanel") {
+    if (parts.length < 3) return null
+    const side = parts[1] as "left" | "right"
+    const field = parts[2]
+    const panel = config.sidepanel?.[side]
+    if (!panel || !(field in panel)) return null
+    return { value: (panel as any)[field], field, isCredential: false }
+  }
+
+  // general.<field>, display.<field>, statusbar.<field>
+  const field = parts.slice(1).join(".")
+  const obj = (config as any)[section]
+  if (!obj || typeof obj !== "object" || !(field in obj)) return null
+  return { value: obj[field], field, isCredential: false }
+}
+
+/** Set a value in the config object in-place. */
+function setConfigValue(config: import("@/types/config").AppConfig, path: string, value: any): void {
+  const parts = path.split(".")
+  const section = parts[0]
+
+  if (section === "servers" && parts.length >= 3) {
+    const server = config.servers[parts[1]]
+    if (server) (server as any)[parts.slice(2).join(".")] = value
+    return
+  }
+
+  if (section === "sidepanel" && parts.length >= 3) {
+    const panel = (config.sidepanel as any)?.[parts[1]]
+    if (panel) panel[parts[2]] = value
+    return
+  }
+
+  const field = parts.slice(1).join(".")
+  const obj = (config as any)[section]
+  if (obj) obj[field] = value
+}
+
+/** Coerce a raw string value to match the type of the existing value. */
+function coerceValue(raw: string, existing: any): any {
+  if (typeof existing === "boolean") {
+    if (raw === "true") return true
+    if (raw === "false") return false
+    return undefined
+  }
+  if (typeof existing === "number") {
+    const n = Number(raw)
+    return isNaN(n) ? undefined : n
+  }
+  if (Array.isArray(existing)) {
+    return raw.split(",").map((s) => s.trim())
+  }
+  return raw
+}
+
+/** Format a value for display. */
+function formatValue(v: any): string {
+  if (Array.isArray(v)) return v.join(", ")
+  return String(v)
+}
+
+/** Display all settings grouped by section. */
+function listAllSettings(config: import("@/types/config").AppConfig): void {
+  addLocalEvent(`%Z7aa2f7───── Settings ─────────────────────────────────%N`)
+
+  const showSection = (label: string, prefix: string, obj: Record<string, any>) => {
+    addLocalEvent(`%Z565f89[${label}]%N`)
+    for (const [key, val] of Object.entries(obj)) {
+      if (typeof val === "object" && val !== null && !Array.isArray(val)) continue
+      const fullPath = `${prefix}.${key}`
+      const isCredential = CREDENTIAL_FIELDS.has(key)
+      const display = isCredential ? "***" : formatValue(val)
+      const envTag = isCredential ? " %Z565f89[.env]%N" : ""
+      addLocalEvent(`  %Z7aa2f7${fullPath.padEnd(32)}%N= %Zc0caf5${display}%N${envTag}`)
+    }
+  }
+
+  showSection("general", "general", config.general)
+  showSection("display", "display", config.display)
+  showSection("sidepanel.left", "sidepanel.left", config.sidepanel.left)
+  showSection("sidepanel.right", "sidepanel.right", config.sidepanel.right)
+  showSection("statusbar", "statusbar", config.statusbar)
+
+  for (const [id, srv] of Object.entries(config.servers)) {
+    showSection(`servers.${id}`, `servers.${id}`, srv)
+  }
+
+  addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────────%N`)
 }
 
 // ─── Alias Resolution ────────────────────────────────────────
