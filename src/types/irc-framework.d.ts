@@ -9,6 +9,7 @@ declare module "irc-framework" {
     notice(target: string, message: string): void
     action(target: string, message: string): void
     raw(rawLine: string): void
+    whois(nick: string, cb?: (event: any) => void): void
     changeNick(nick: string): void
     setTopic(channel: string, topic: string): void
     on(event: string, handler: (...args: any[]) => void): void

@@ -20,5 +20,22 @@ export const DEFAULT_CONFIG: AppConfig = {
     left: { width: 20, visible: true },
     right: { width: 18, visible: true },
   },
+  statusbar: {
+    enabled: true,
+    items: ["active_windows", "nick_info", "channel_info", "lag"],
+    separator: " | ",
+
+    // "" means "use theme color" — resolved at render time
+    background: "",
+    text_color: "",
+    accent_color: "",
+    muted_color: "",
+    dim_color: "",
+
+    prompt: "[$channel] > ",
+    prompt_color: "",
+    input_color: "",
+    cursor_color: "",
+  },
   servers: {},
 }

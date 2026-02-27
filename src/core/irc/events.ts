@@ -57,9 +57,9 @@ export function bindEvents(client: any, connectionId: string) {
       })
     } else {
       s.addNick(bufferId, { nick: event.nick, prefix: "", away: false, account: event.account })
-      s.addMessage(bufferId, makeEventMessage(
-        `${event.nick} (${event.ident}@${event.hostname}) has joined ${event.channel}`
-      ))
+      s.addMessage(bufferId, makeFormattedEvent("join", [
+        event.nick, event.ident || "", event.hostname || "", event.channel,
+      ]))
     }
   })
 
@@ -72,9 +72,9 @@ export function bindEvents(client: any, connectionId: string) {
       s.removeBuffer(bufferId)
     } else {
       s.removeNick(bufferId, event.nick)
-      s.addMessage(bufferId, makeEventMessage(
-        `${event.nick} has left ${event.channel} (${event.message || ""})`
-      ))
+      s.addMessage(bufferId, makeFormattedEvent("part", [
+        event.nick, event.channel, event.message || "",
+      ]))
     }
   })
 
@@ -86,9 +86,9 @@ export function bindEvents(client: any, connectionId: string) {
 
     for (const id of affected) {
       getStore().removeNick(id, event.nick)
-      getStore().addMessage(id, makeEventMessage(
-        `${event.nick} has quit (${event.message || ""})`
-      ))
+      getStore().addMessage(id, makeFormattedEvent("quit", [
+        event.nick, event.message || "",
+      ]))
     }
   })
 
@@ -99,12 +99,12 @@ export function bindEvents(client: any, connectionId: string) {
 
     if (event.kicked === conn?.nick) {
       s.addMessage(bufferId, makeEventMessage(
-        `You were kicked from ${event.channel} by ${event.nick} (${event.message || ""})`
+        `%Zf7768eYou were kicked from ${event.channel} by %Za9b1d6${event.nick}%Zf7768e (${event.message || ""})%N`
       ))
     } else {
       s.removeNick(bufferId, event.kicked)
       s.addMessage(bufferId, makeEventMessage(
-        `${event.kicked} was kicked by ${event.nick} (${event.message || ""})`
+        `%Ze0af68${event.kicked}%Z565f89 was kicked by %Za9b1d6${event.nick}%Z565f89 (${event.message || ""})%N`
       ))
     }
   })
@@ -117,6 +117,7 @@ export function bindEvents(client: any, connectionId: string) {
 
     // Create query buffer if it doesn't exist
     if (!isChannel && !s.buffers.has(bufferId)) {
+      const host = event.ident && event.hostname ? `${event.ident}@${event.hostname}` : undefined
       s.addBuffer({
         id: bufferId,
         connectionId,
@@ -127,7 +128,17 @@ export function bindEvents(client: any, connectionId: string) {
         unreadCount: 0,
         lastRead: new Date(),
         users: new Map(),
+        topic: host,
       })
+    } else if (!isChannel) {
+      // Update hostname if we got new info
+      const host = event.ident && event.hostname ? `${event.ident}@${event.hostname}` : undefined
+      if (host) {
+        const buf = s.buffers.get(bufferId)
+        if (buf && buf.type === BufferType.Query && buf.topic !== host) {
+          s.updateBufferTopic(bufferId, host)
+        }
+      }
     }
 
     const conn = s.connections.get(connectionId)
@@ -219,7 +230,9 @@ export function bindEvents(client: any, connectionId: string) {
 
     for (const id of affected) {
       getStore().updateNick(id, event.nick, event.new_nick)
-      getStore().addMessage(id, makeEventMessage(`${event.nick} is now known as ${event.new_nick}`))
+      getStore().addMessage(id, makeFormattedEvent("nick_change", [
+        event.nick, event.new_nick,
+      ]))
     }
   })
 
@@ -228,7 +241,9 @@ export function bindEvents(client: any, connectionId: string) {
     const bufferId = makeBufferId(connectionId, event.channel)
     s.updateBufferTopic(bufferId, event.topic, event.nick)
     if (event.nick) {
-      getStore().addMessage(bufferId, makeEventMessage(`Topic set by ${event.nick}: ${event.topic}`))
+      getStore().addMessage(bufferId, makeFormattedEvent("topic", [
+        event.nick, event.topic,
+      ]))
     }
   })
 
@@ -252,22 +267,67 @@ export function bindEvents(client: any, connectionId: string) {
     }
   })
 
-  // Handle mode changes that affect nick prefixes
-  client.on("mode", (_event: any) => {
-    // Mode handling is complex — for MVP just re-request userlist
-    // irc-framework handles prefix updates in its channel objects
+  client.on("mode", (event: any) => {
+    const s = getStore()
+    const bufferId = makeBufferId(connectionId, event.target)
+    if (!s.buffers.has(bufferId)) return
+
+    // Build displayable mode string
+    const modeStr = buildModeString(event)
+    getStore().addMessage(bufferId, makeFormattedEvent("mode", [
+      event.nick || "server", modeStr, event.target,
+    ]))
+
+    // Update nick prefixes for user prefix modes (+o, +v, etc.)
+    if (!Array.isArray(event.modes)) return
+    const conn = getStore().connections.get(connectionId)
+    const prefixMap = buildPrefixMap(conn?.isupport?.PREFIX)
+
+    for (const mc of event.modes) {
+      if (!mc.param) continue
+      const isAdding = mc.mode.startsWith("+")
+      const modeChar = mc.mode.replace(/[+-]/, "")
+      const prefix = prefixMap[modeChar]
+      if (!prefix) continue // not a nick prefix mode
+
+      const buf = getStore().buffers.get(bufferId)
+      const entry = buf?.users.get(mc.param)
+      if (!entry) continue
+
+      getStore().addNick(bufferId, {
+        ...entry,
+        prefix: isAdding ? prefix : "",
+      })
+    }
+  })
+
+  // Lag measurement via CTCP PING or PONG
+  let lastPingSent = 0
+  const lagPingInterval = setInterval(() => {
+    if (getStore().connections.get(connectionId)?.status === "connected") {
+      lastPingSent = Date.now()
+      client.raw("PING " + lastPingSent)
+    }
+  }, 30000)
+
+  client.on("pong", () => {
+    if (lastPingSent > 0) {
+      const lag = Date.now() - lastPingSent
+      getStore().updateConnection(connectionId, { lag })
+    }
   })
 
   client.on("close", () => {
+    clearInterval(lagPingInterval)
     const s = getStore()
     s.updateConnection(connectionId, { status: "disconnected" })
-    s.addMessage(makeBufferId(connectionId, "Status"), makeEventMessage("Disconnected from server"))
+    s.addMessage(makeBufferId(connectionId, "Status"), makeEventMessage("%Zf7768eDisconnected from server%N"))
   })
 
   client.on("reconnecting", () => {
     const s = getStore()
     s.updateConnection(connectionId, { status: "connecting" })
-    s.addMessage(makeBufferId(connectionId, "Status"), makeEventMessage("Reconnecting..."))
+    s.addMessage(makeBufferId(connectionId, "Status"), makeEventMessage("%Ze0af68Reconnecting...%N"))
   })
 
   client.on("error", (event: any) => {
@@ -275,7 +335,7 @@ export function bindEvents(client: any, connectionId: string) {
     const s = getStore()
     const statusId = makeBufferId(connectionId, "Status")
     if (s.buffers.has(statusId)) {
-      s.addMessage(statusId, makeEventMessage(`Error: ${event.message || event.error || JSON.stringify(event)}`))
+      s.addMessage(statusId, makeEventMessage(`%Zf7768eError: ${event.message || event.error || JSON.stringify(event)}%N`))
     }
   })
 
@@ -294,8 +354,85 @@ export function bindEvents(client: any, connectionId: string) {
     const s = getStore()
     s.updateConnection(connectionId, { isupport: event.options || {} })
   })
+
+  // ─── Whois response ──────────────────────────────────────
+  client.on("whois", (event: any) => {
+    const s = getStore()
+    const targetBuffer = s.activeBufferId
+    if (!targetBuffer) return
+
+    if (event.error) {
+      s.addMessage(targetBuffer, makeEventMessage(
+        `%Zf7768e${event.nick || "?"}: No such nick/channel%N`
+      ))
+      return
+    }
+
+    const lines: string[] = []
+    lines.push(`%Z7aa2f7───── WHOIS ${event.nick} ──────────────────────────%N`)
+
+    if (event.ident && event.hostname) {
+      lines.push(`%Zc0caf5${event.nick}%Z565f89 (${event.ident}@${event.hostname})%N`)
+    }
+
+    if (event.real_name) {
+      lines.push(`  %Za9b1d6${event.real_name}%N`)
+    }
+
+    if (event.channels) {
+      lines.push(`%Z565f89  channels: %Za9b1d6${event.channels}%N`)
+    }
+
+    if (event.server) {
+      const info = event.server_info ? ` (${event.server_info})` : ""
+      lines.push(`%Z565f89  server: %Za9b1d6${event.server}${info}%N`)
+    }
+
+    if (event.account) {
+      lines.push(`%Z565f89  account: %Z9ece6a${event.account}%N`)
+    }
+
+    if (event.idle != null) {
+      let line = `%Z565f89  idle: %Za9b1d6${formatDuration(event.idle)}`
+      if (event.logon) {
+        line += `%Z565f89, signon: %Za9b1d6${formatDate(new Date(event.logon * 1000))}`
+      }
+      lines.push(line + `%N`)
+    }
+
+    if (event.away) {
+      lines.push(`%Z565f89  away: %Ze0af68${event.away}%N`)
+    }
+
+    if (event.operator) {
+      lines.push(`  %Zbb9af7${event.operator}%N`)
+    }
+
+    if (event.secure || event.actually_secure) {
+      lines.push(`  %Z9ece6ais using a secure connection%N`)
+    }
+
+    if (event.bot) {
+      lines.push(`  %Z7dcfffis a bot%N`)
+    }
+
+    // RPL_WHOISSPECIAL — can be array or string
+    if (event.special) {
+      const specials = Array.isArray(event.special) ? event.special : [event.special]
+      for (const line of specials) {
+        lines.push(`  %Zbb9af7${line}%N`)
+      }
+    }
+
+    lines.push(`%Z7aa2f7─────────────────────────────────────────────%N`)
+
+    for (const line of lines) {
+      getStore().addMessage(targetBuffer, makeEventMessage(line))
+    }
+  })
 }
 
+/** System/inline event — text may contain %Z color codes. */
 function makeEventMessage(text: string): Message {
   return {
     id: crypto.randomUUID(),
@@ -304,6 +441,69 @@ function makeEventMessage(text: string): Message {
     text,
     highlight: false,
   }
+}
+
+/** IRC event with theme format key — rendered via [formats.events] in MessageLine. */
+function makeFormattedEvent(key: string, params: string[]): Message {
+  return {
+    id: crypto.randomUUID(),
+    timestamp: new Date(),
+    type: "event",
+    text: params.join(" "),
+    eventKey: key,
+    eventParams: params,
+    highlight: false,
+  }
+}
+
+/** Reconstruct a displayable mode string from irc-framework mode event. */
+function buildModeString(event: any): string {
+  if (event.raw_modes) {
+    const params = event.raw_params ?? []
+    return event.raw_modes + (params.length > 0 ? " " + params.join(" ") : "")
+  }
+  if (!Array.isArray(event.modes)) return String(event.modes ?? "")
+
+  let modeChars = ""
+  const params: string[] = []
+  let lastSign = ""
+
+  for (const m of event.modes) {
+    const sign = m.mode[0]
+    const char = m.mode.slice(1)
+    if (sign !== lastSign) {
+      modeChars += sign
+      lastSign = sign
+    }
+    modeChars += char
+    if (m.param) params.push(m.param)
+  }
+
+  return modeChars + (params.length > 0 ? " " + params.join(" ") : "")
+}
+
+function formatDuration(seconds: number): string {
+  if (seconds < 60) return `${seconds}s`
+  const days = Math.floor(seconds / 86400)
+  const hours = Math.floor((seconds % 86400) / 3600)
+  const mins = Math.floor((seconds % 3600) / 60)
+  const secs = seconds % 60
+  const parts: string[] = []
+  if (days > 0) parts.push(`${days}d`)
+  if (hours > 0) parts.push(`${hours}h`)
+  if (mins > 0) parts.push(`${mins}m`)
+  if (secs > 0 && days === 0) parts.push(`${secs}s`)
+  return parts.join(" ")
+}
+
+function formatDate(date: Date): string {
+  const y = date.getFullYear()
+  const mo = String(date.getMonth() + 1).padStart(2, "0")
+  const d = String(date.getDate()).padStart(2, "0")
+  const h = String(date.getHours()).padStart(2, "0")
+  const mi = String(date.getMinutes()).padStart(2, "0")
+  const s = String(date.getSeconds()).padStart(2, "0")
+  return `${y}-${mo}-${d} ${h}:${mi}:${s}`
 }
 
 function getNickMode(store: any, bufferId: string, nick: string): string {

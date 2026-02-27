@@ -10,6 +10,7 @@ export interface Connection {
   userModes: string
   isupport: Record<string, string>
   error?: string
+  lag?: number // milliseconds
 }
 
 // === Buffer ===
@@ -64,6 +65,8 @@ export interface Message {
   text: string
   highlight: boolean
   tags?: Record<string, string>
+  eventKey?: string
+  eventParams?: string[]
 }
 
 // === NickList ===

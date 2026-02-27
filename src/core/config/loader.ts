@@ -10,6 +10,7 @@ export function mergeWithDefaults(partial: Record<string, any>): AppConfig {
       left: { ...DEFAULT_CONFIG.sidepanel.left, ...partial.sidepanel?.left },
       right: { ...DEFAULT_CONFIG.sidepanel.right, ...partial.sidepanel?.right },
     },
+    statusbar: { ...DEFAULT_CONFIG.statusbar, ...partial.statusbar },
     servers: partial.servers ?? {},
   }
 }

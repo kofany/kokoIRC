@@ -10,6 +10,7 @@ import { BufferList } from "@/ui/sidebar/BufferList"
 import { NickList } from "@/ui/sidebar/NickList"
 import { ChatView } from "@/ui/chat/ChatView"
 import { CommandInput } from "@/ui/input/CommandInput"
+import { StatusLine } from "@/ui/statusbar/StatusLine"
 
 export function App() {
   const renderer = useRenderer()
@@ -46,6 +47,8 @@ export function App() {
     )
   }
 
+  const statusbarEnabled = config?.statusbar?.enabled ?? true
+
   return (
     <AppLayout
       topicbar={<TopicBar />}
@@ -53,6 +56,7 @@ export function App() {
       chat={<ChatView />}
       nicklist={<NickList />}
       input={<CommandInput />}
+      statusline={statusbarEnabled ? <StatusLine /> : undefined}
     />
   )
 }

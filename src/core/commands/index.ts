@@ -1,2 +1,3 @@
 export { parseCommand } from "./parser"
-export { executeCommand } from "./handlers"
+export { executeCommand, commands, getCommandNames } from "./handlers"
+export type { CommandDef } from "./handlers"

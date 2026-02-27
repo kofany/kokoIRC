@@ -23,7 +23,15 @@ export function MessageLine({ message, isOwnNick }: Props) {
   let msgSpans: StyledSpan[]
 
   if (message.type === "event") {
-    msgSpans = parseFormatString("%w" + message.text + "%N", [])
+    const events = theme?.formats.events ?? {}
+    if (message.eventKey && events[message.eventKey]) {
+      const format = events[message.eventKey]
+      const resolved = resolveAbstractions(format, abstracts)
+      msgSpans = parseFormatString(resolved, message.eventParams ?? [])
+    } else {
+      // System events (whois, help, status) — text may contain inline %Z codes
+      msgSpans = parseFormatString(message.text, [])
+    }
   } else {
     // Message/action/notice
     const nickWidth = config?.display.nick_column_width ?? 8

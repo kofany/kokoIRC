@@ -3,7 +3,7 @@ export interface ParsedCommand {
   args: string[]
 }
 
-const GREEDY_COMMANDS = new Set(["msg", "notice", "me", "quit", "topic", "kick"])
+const GREEDY_COMMANDS = new Set(["msg", "notice", "me", "quit", "topic", "kick", "close"])
 
 export function parseCommand(input: string): ParsedCommand | null {
   if (!input.startsWith("/")) return null
@@ -19,7 +19,7 @@ export function parseCommand(input: string): ParsedCommand | null {
   const rest = trimmed.slice(spaceIndex + 1).trim()
 
   if (GREEDY_COMMANDS.has(command)) {
-    if (command === "me" || command === "quit") {
+    if (command === "me" || command === "quit" || command === "close") {
       return { command, args: [rest] }
     }
     const firstSpace = rest.indexOf(" ")

@@ -1,5 +1,5 @@
 [general]
-nick = "kofany_tui"
+nick = "kofany`"
 username = "kofany"
 realname = "OpenTUI IRC"
 theme = "default"
@@ -21,10 +21,28 @@ visible = true
 width = 18
 visible = true
 
+[statusbar]
+enabled = true
+items = ["active_windows", "nick_info", "channel_info", "lag"]
+separator = " | "
+
+# Colors — leave empty "" to inherit from theme
+# background = "#16161e"
+# accent_color = "#7aa2f7"
+# text_color = "#a9b1d6"
+# muted_color = "#565f89"
+# dim_color = "#292e42"
+
+# Input line
+prompt = "[$channel]❱"
+# prompt_color = "#7aa2f7"
+# input_color = "#c0caf5"
+# cursor_color = "#7aa2f7"
+
 [servers.ircnet]
 label = "IRCnet"
 address = "sasl.irc.atw.hu"
 port = 6697
 tls = true
 autoconnect = true
-channels = ["#polska", "#tahio"]
+channels = ["#xxx", "#tahio"]

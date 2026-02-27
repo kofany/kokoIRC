@@ -1,9 +1,32 @@
 export type NickAlignment = 'left' | 'right' | 'center'
 
+export type StatusbarItem = 'active_windows' | 'nick_info' | 'channel_info' | 'lag' | 'time'
+
+export interface StatusbarConfig {
+  // Status line (info bar above input)
+  enabled: boolean
+  items: StatusbarItem[]
+  separator: string
+
+  // Shared appearance for the whole bottom area (status + input)
+  background: string
+  text_color: string
+  accent_color: string
+  muted_color: string
+  dim_color: string
+
+  // Input line (prompt)
+  prompt: string              // format: $channel, $nick, $buffer — substituted at render
+  prompt_color: string
+  input_color: string
+  cursor_color: string
+}
+
 export interface AppConfig {
   general: GeneralConfig
   display: DisplayConfig
   sidepanel: SidepanelConfig
+  statusbar: StatusbarConfig
   servers: Record<string, ServerConfig>
 }
 

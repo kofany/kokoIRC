@@ -1,8 +1,9 @@
 import { useState, useRef, useCallback } from "react"
 import { useStore } from "@/core/state/store"
-import { parseCommand, executeCommand } from "@/core/commands"
+import { parseCommand, executeCommand, getCommandNames } from "@/core/commands"
 import { getClient } from "@/core/irc"
 import { useKeyboard } from "@opentui/react"
+import { useStatusbarColors } from "@/ui/statusbar/StatusLine"
 import type { InputRenderable } from "@opentui/core"
 
 export function CommandInput() {
@@ -13,16 +14,21 @@ export function CommandInput() {
 
   // Tab completion state
   const tabState = useRef<{
-    prefix: string       // the partial nick typed by user
-    matches: string[]    // sorted matching nicks
+    prefix: string       // the partial text typed by user
+    matches: string[]    // sorted matching candidates
     index: number        // current position in matches cycle
     textBefore: string   // text before the word being completed
     isStartOfLine: boolean
+    isCommand: boolean   // true = completing /command, false = completing nick
   } | null>(null)
 
   const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
+  const conn = useStore((s) => {
+    const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
+    return buf ? s.connections.get(buf.connectionId) : null
+  })
   const addMessage = useStore((s) => s.addMessage)
-  const colors = useStore((s) => s.theme?.colors)
+  const sb = useStatusbarColors()
 
   const handleSubmit = useCallback((submittedValue?: string | unknown) => {
     const text = typeof submittedValue === "string" ? submittedValue : value
@@ -63,45 +69,58 @@ export function CommandInput() {
   }, [value, buffer, addMessage])
 
   const handleTabCompletion = useCallback(() => {
-    if (!buffer) return
-
     const currentValue = inputRef.current?.value ?? value
-    const nicks = Array.from(buffer.users.keys())
-    if (nicks.length === 0) return
-
     let state = tabState.current
 
     if (state) {
       // Continue cycling through matches
       state.index = (state.index + 1) % state.matches.length
     } else {
-      // Start new tab completion
-      // Find the last word (partial nick) in the input
-      const spaceIdx = currentValue.lastIndexOf(" ")
-      const textBefore = spaceIdx >= 0 ? currentValue.slice(0, spaceIdx + 1) : ""
-      const partial = spaceIdx >= 0 ? currentValue.slice(spaceIdx + 1) : currentValue
-      const isStartOfLine = spaceIdx < 0
+      // ── Command completion: "/par" → "/part "
+      if (currentValue.startsWith("/") && !currentValue.includes(" ")) {
+        const partial = currentValue.slice(1).toLowerCase()
+        if (!partial) return
+        const cmdNames = getCommandNames()
+        const matches = cmdNames.filter((n) => n.startsWith(partial))
+        if (matches.length === 0) return
+        state = { prefix: partial, matches, index: 0, textBefore: "/", isStartOfLine: false, isCommand: true }
+        tabState.current = state
+      } else {
+        // ── Nick completion
+        if (!buffer) return
+        const nicks = Array.from(buffer.users.keys())
+        if (nicks.length === 0) return
 
-      if (!partial) return
+        const spaceIdx = currentValue.lastIndexOf(" ")
+        const textBefore = spaceIdx >= 0 ? currentValue.slice(0, spaceIdx + 1) : ""
+        const partial = spaceIdx >= 0 ? currentValue.slice(spaceIdx + 1) : currentValue
+        const isStartOfLine = spaceIdx < 0
 
-      const lower = partial.toLowerCase()
-      const matches = nicks
-        .filter((n) => n.toLowerCase().startsWith(lower))
-        .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+        if (!partial) return
 
-      if (matches.length === 0) return
+        const lower = partial.toLowerCase()
+        const matches = nicks
+          .filter((n) => n.toLowerCase().startsWith(lower))
+          .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
 
-      state = { prefix: partial, matches, index: 0, textBefore, isStartOfLine }
-      tabState.current = state
+        if (matches.length === 0) return
+
+        state = { prefix: partial, matches, index: 0, textBefore, isStartOfLine, isCommand: false }
+        tabState.current = state
+      }
     }
 
-    const nick = state.matches[state.index]
-    // At start of line: "nick: " (like irssi), mid-line: just "nick "
-    const suffix = state.isStartOfLine ? ": " : " "
-    const completed = state.textBefore + nick + suffix
-
-    setValue(completed)
-    if (inputRef.current) inputRef.current.value = completed
+    if (state.isCommand) {
+      const completed = "/" + state.matches[state.index] + " "
+      setValue(completed)
+      if (inputRef.current) inputRef.current.value = completed
+    } else {
+      const nick = state.matches[state.index]
+      const suffix = state.isStartOfLine ? ": " : " "
+      const completed = state.textBefore + nick + suffix
+      setValue(completed)
+      if (inputRef.current) inputRef.current.value = completed
+    }
   }, [value, buffer])
 
   const resetTabState = useCallback(() => {
@@ -146,11 +165,16 @@ export function CommandInput() {
     }
   })
 
-  const prompt = buffer ? `[${buffer.name}] > ` : "> "
+  // Build prompt from config template: $channel, $nick, $buffer
+  const promptTemplate = sb.prompt
+  const prompt = promptTemplate
+    .replace("$channel", buffer?.name ?? "")
+    .replace("$nick", conn?.nick ?? "")
+    .replace("$buffer", buffer?.name ?? "")
 
   return (
-    <box flexDirection="row" width="100%">
-      <text><span fg={colors?.fg_muted ?? "#565f89"}>{prompt}</span></text>
+    <box flexDirection="row" width="100%" backgroundColor={sb.bg}>
+      <text><span fg={sb.promptColor}>{prompt}</span></text>
       <input
         ref={inputRef}
         value={value}
@@ -162,9 +186,9 @@ export function CommandInput() {
         onSubmit={handleSubmit}
         focused
         flexGrow={1}
-        backgroundColor="transparent"
-        textColor={colors?.fg ?? "#c0caf5"}
-        cursorColor={colors?.cursor ?? "#7aa2f7"}
+        backgroundColor={sb.bg}
+        textColor={sb.inputColor}
+        cursorColor={sb.cursorColor}
       />
     </box>
   )
