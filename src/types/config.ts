@@ -24,7 +24,7 @@ export interface StatusbarConfig {
 }
 
 export const DEFAULT_ITEM_FORMATS: Record<StatusbarItem, string> = {
-  active_windows: "Act: $win $activity",
+  active_windows: "Act: $activity",
   nick_info: "$nick$modes",
   channel_info: "$name$modes",
   lag: "Lag: $lag",

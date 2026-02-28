@@ -86,14 +86,9 @@ export function StatusLine() {
 
   function renderActiveWindows(idx: number): React.ReactNode {
     const entries: { winNum: number; color: string; bufferId: string }[] = []
-    let activeWinNum = 0
     for (let i = 0; i < sortedBuffers.length; i++) {
       const buf = sortedBuffers[i]
-      const winNum = i + 1
-      if (buf.id === activeBufferId) {
-        activeWinNum = winNum
-        continue
-      }
+      if (buf.id === activeBufferId) continue
       if (buf.activity === ActivityLevel.None) continue
 
       let color = "#9ece6a"
@@ -101,24 +96,24 @@ export function StatusLine() {
       else if (buf.activity >= ActivityLevel.Highlight) color = "#f7768e"
       else if (buf.activity >= ActivityLevel.Activity) color = "#e0af68"
 
-      entries.push({ winNum, color, bufferId: buf.id })
+      entries.push({ winNum: i + 1, color, bufferId: buf.id })
     }
+
+    if (entries.length === 0) return null
 
     // Split format at $activity to render numbers as individual clickable elements
     const format = getItemFormat("active_windows")
     const actIdx = format.indexOf("$activity")
     const result: React.ReactNode[] = []
 
-    // Render prefix (everything before $activity, contains $win)
+    // Render prefix (everything before $activity)
     const prefix = actIdx >= 0 ? format.slice(0, actIdx) : format
     if (prefix) {
-      result.push(renderWithFormat(prefix, {
-        win: <span fg={sb.accent}>{activeWinNum}</span>,
-      }, `awp-${idx}`))
+      result.push(renderWithFormat(prefix, {}, `awp-${idx}`))
     }
 
     // Render each activity number as a clickable <text>
-    if (actIdx >= 0 && entries.length > 0) {
+    if (actIdx >= 0) {
       for (let j = 0; j < entries.length; j++) {
         const e = entries[j]
         if (j > 0) {
@@ -130,10 +125,8 @@ export function StatusLine() {
           </text>
         )
       }
-    }
 
-    // Render suffix (everything after $activity)
-    if (actIdx >= 0) {
+      // Render suffix (everything after $activity)
       const suffix = format.slice(actIdx + 9)
       if (suffix) {
         result.push(renderWithFormat(suffix, {}, `aws-${idx}`))
