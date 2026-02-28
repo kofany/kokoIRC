@@ -5,6 +5,7 @@ import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
 import { bindEvents } from "./events"
 import { createAntiFloodMiddleware } from "./antiflood"
+import { createIgnoreMiddleware } from "./ignore"
 
 const clients = new Map<string, Client>()
 
@@ -61,6 +62,7 @@ export function connectServer(id: string, config: ServerConfig): Client {
 
   bindEvents(client, id)
   client.use(createAntiFloodMiddleware(id))
+  client.use(createIgnoreMiddleware())
 
   const connectOpts: ConnectOptions = {
     host: config.address,

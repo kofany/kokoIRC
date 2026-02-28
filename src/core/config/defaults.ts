@@ -42,4 +42,5 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   servers: {},
   aliases: {},
+  ignores: [],
 }

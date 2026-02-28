@@ -8,6 +8,7 @@ interface AppState {
   connections: Map<string, Connection>
   buffers: Map<string, Buffer>
   activeBufferId: string | null
+  previousActiveBufferId: string | null
   config: AppConfig | null
   theme: ThemeFile | null
 
@@ -48,6 +49,7 @@ export const useStore = create<AppState>((set, get) => ({
   connections: new Map(),
   buffers: new Map(),
   activeBufferId: null,
+  previousActiveBufferId: null,
   config: null,
   theme: null,
 
@@ -79,8 +81,11 @@ export const useStore = create<AppState>((set, get) => ({
   removeBuffer: (id) => set((s) => {
     const buffers = new Map(s.buffers)
     buffers.delete(id)
-    const activeBufferId = s.activeBufferId === id ? null : s.activeBufferId
-    return { buffers, activeBufferId }
+    if (s.activeBufferId !== id) return { buffers }
+    // Fall back to previous buffer if it still exists, otherwise null
+    const fallback = s.previousActiveBufferId && buffers.has(s.previousActiveBufferId)
+      ? s.previousActiveBufferId : null
+    return { buffers, activeBufferId: fallback }
   }),
 
   setActiveBuffer: (id) => set((s) => {
@@ -90,7 +95,8 @@ export const useStore = create<AppState>((set, get) => ({
     if (buf) {
       buffers.set(id, { ...buf, activity: 0, unreadCount: 0, lastRead: new Date() })
     }
-    return { activeBufferId: id, buffers }
+    const previousActiveBufferId = s.activeBufferId !== id ? s.activeBufferId : s.previousActiveBufferId
+    return { activeBufferId: id, previousActiveBufferId, buffers }
   }),
 
   updateBufferActivity: (id, level) => set((s) => {

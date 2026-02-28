@@ -1,6 +1,6 @@
 import { parse as parseTOML, stringify as stringifyTOML } from "smol-toml"
 import { DEFAULT_CONFIG } from "./defaults"
-import type { AppConfig, ServerConfig } from "@/types/config"
+import type { AppConfig, ServerConfig, IgnoreEntry } from "@/types/config"
 
 /** Create a deep-ish clone of config, safe for in-place mutation. */
 export function cloneConfig(config: AppConfig): AppConfig {
@@ -16,6 +16,11 @@ export function cloneConfig(config: AppConfig): AppConfig {
       Object.entries(config.servers).map(([id, srv]) => [id, { ...srv, channels: [...srv.channels] }])
     ),
     aliases: { ...config.aliases },
+    ignores: config.ignores.map((e) => ({
+      ...e,
+      levels: [...e.levels],
+      channels: e.channels ? [...e.channels] : undefined,
+    })),
   }
 }
 
@@ -30,6 +35,7 @@ export function mergeWithDefaults(partial: Record<string, any>): AppConfig {
     statusbar: { ...DEFAULT_CONFIG.statusbar, ...partial.statusbar },
     servers: partial.servers ?? {},
     aliases: partial.aliases ?? {},
+    ignores: (partial.ignores as IgnoreEntry[] | undefined) ?? [],
   }
 }
 
@@ -123,6 +129,14 @@ export async function saveConfig(configPath: string, config: AppConfig): Promise
 
   for (const [id, server] of Object.entries(config.servers)) {
     tomlObj.servers[id] = cleanServerForTOML(server)
+  }
+
+  if (config.ignores.length > 0) {
+    tomlObj.ignores = config.ignores.map((e) => {
+      const obj: Record<string, any> = { mask: e.mask, levels: e.levels }
+      if (e.channels?.length) obj.channels = e.channels
+      return obj
+    })
   }
 
   const toml = stringifyTOML(tomlObj)

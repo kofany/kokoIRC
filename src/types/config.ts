@@ -31,6 +31,23 @@ export const DEFAULT_ITEM_FORMATS: Record<StatusbarItem, string> = {
   time: "$time",
 }
 
+export type IgnoreLevel =
+  | 'MSGS' | 'PUBLIC' | 'NOTICES' | 'ACTIONS'
+  | 'JOINS' | 'PARTS' | 'QUITS' | 'NICKS' | 'KICKS'
+  | 'CTCPS' | 'ALL'
+
+export const ALL_IGNORE_LEVELS: IgnoreLevel[] = [
+  'MSGS', 'PUBLIC', 'NOTICES', 'ACTIONS',
+  'JOINS', 'PARTS', 'QUITS', 'NICKS', 'KICKS',
+  'CTCPS', 'ALL',
+]
+
+export interface IgnoreEntry {
+  mask: string            // nick or nick!user@host wildcard pattern
+  levels: IgnoreLevel[]   // which event types to ignore
+  channels?: string[]     // restrict to specific channels (empty = all)
+}
+
 export interface AppConfig {
   general: GeneralConfig
   display: DisplayConfig
@@ -38,6 +55,7 @@ export interface AppConfig {
   statusbar: StatusbarConfig
   servers: Record<string, ServerConfig>
   aliases: Record<string, string>
+  ignores: IgnoreEntry[]
 }
 
 export interface GeneralConfig {

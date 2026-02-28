@@ -3,7 +3,7 @@ import { useStore } from "@/core/state/store"
 import { loadConfig, saveConfig, saveCredentialsToEnv, cloneConfig } from "@/core/config/loader"
 import { loadTheme } from "@/core/theme/loader"
 import { BufferType, makeBufferId, ActivityLevel } from "@/types"
-import { DEFAULT_ITEM_FORMATS, type ServerConfig, type StatusbarItem } from "@/types/config"
+import { DEFAULT_ITEM_FORMATS, ALL_IGNORE_LEVELS, type ServerConfig, type StatusbarItem, type IgnoreLevel, type IgnoreEntry } from "@/types/config"
 import { DEFAULT_CONFIG } from "@/core/config/defaults"
 import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
 import type { CommandDef } from "./types"
@@ -1008,6 +1008,117 @@ export const commands: Record<string, CommandDef> = {
     },
     description: "Manage statusbar items and formats",
     usage: "/items [list|add|remove|move|format|separator|available|reset] [args...]",
+  },
+
+  ignore: {
+    async handler(args) {
+      const s = useStore.getState()
+      if (!s.config) return
+
+      // No args: list current ignores
+      if (args.length === 0) {
+        const ignores = s.config.ignores
+        if (ignores.length === 0) {
+          addLocalEvent(`%Z565f89No ignore rules defined%N`)
+          return
+        }
+        addLocalEvent(`%Z7aa2f7───── Ignore list ─────────────────────────────%N`)
+        for (let i = 0; i < ignores.length; i++) {
+          const e = ignores[i]
+          const chans = e.channels?.length ? ` %Z565f89channels: ${e.channels.join(",")}%N` : ""
+          addLocalEvent(`  %Ze0af68${i + 1}.%N %Zc0caf5${e.mask}%N %Z565f89[${e.levels.join(", ")}]%N${chans}`)
+        }
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────────%N`)
+        return
+      }
+
+      // Parse: /ignore <mask> [levels...] [-channels #a,#b]
+      const mask = args[0]
+      let levels: IgnoreLevel[] = []
+      let channels: string[] | undefined
+
+      for (let i = 1; i < args.length; i++) {
+        if (args[i] === "-channels" && i + 1 < args.length) {
+          channels = args[i + 1].split(",").map((c) => c.trim()).filter(Boolean)
+          i++ // skip next arg
+        } else {
+          const upper = args[i].toUpperCase() as IgnoreLevel
+          if (ALL_IGNORE_LEVELS.includes(upper)) {
+            levels.push(upper)
+          } else {
+            addLocalEvent(`%Zf7768eUnknown ignore level: ${args[i]}%N`)
+            addLocalEvent(`%Z565f89Valid levels: ${ALL_IGNORE_LEVELS.join(", ")}%N`)
+            return
+          }
+        }
+      }
+
+      // Default to ALL if no levels specified
+      if (levels.length === 0) levels = ["ALL"]
+
+      const entry: IgnoreEntry = { mask, levels }
+      if (channels?.length) entry.channels = channels
+
+      const config = cloneConfig(s.config)
+      config.ignores.push(entry)
+      s.setConfig(config)
+
+      try {
+        await saveConfig(CONFIG_PATH, config)
+      } catch (err: any) {
+        addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+      }
+
+      const chansStr = channels?.length ? ` in ${channels.join(",")}` : ""
+      addLocalEvent(`%Z9ece6aIgnoring%N %Zc0caf5${mask}%N %Z565f89[${levels.join(", ")}]${chansStr}%N`)
+    },
+    description: "Add an ignore rule",
+    usage: "/ignore [mask] [levels...] [-channels #a,#b]",
+  },
+
+  unignore: {
+    async handler(args) {
+      const s = useStore.getState()
+      if (!s.config) return
+
+      if (args.length === 0) {
+        addLocalEvent(`%Zf7768eUsage: /unignore <number|mask>%N`)
+        return
+      }
+
+      const config = cloneConfig(s.config)
+      const input = args[0]
+      const num = parseInt(input, 10)
+      let removed: IgnoreEntry | undefined
+
+      if (!isNaN(num) && num >= 1 && num <= config.ignores.length) {
+        // Remove by 1-based index
+        removed = config.ignores.splice(num - 1, 1)[0]
+      } else {
+        // Remove by exact mask match
+        const idx = config.ignores.findIndex((e) => e.mask.toLowerCase() === input.toLowerCase())
+        if (idx !== -1) {
+          removed = config.ignores.splice(idx, 1)[0]
+        }
+      }
+
+      if (!removed) {
+        addLocalEvent(`%Zf7768eNo ignore rule matching '${input}'%N`)
+        return
+      }
+
+      s.setConfig(config)
+
+      try {
+        await saveConfig(CONFIG_PATH, config)
+      } catch (err: any) {
+        addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+      }
+
+      addLocalEvent(`%Z9ece6aRemoved ignore:%N %Zc0caf5${removed.mask}%N %Z565f89[${removed.levels.join(", ")}]%N`)
+    },
+    description: "Remove an ignore rule",
+    usage: "/unignore <number|mask>",
   },
 
   disconnect: {

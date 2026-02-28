@@ -5,6 +5,7 @@ import type { Message } from "@/types"
 import { formatDuration, formatDate, buildModeString, buildPrefixMap, buildModeOrder, getHighestPrefix, getNickMode } from "./formatting"
 import { handleNetsplitQuit, handleNetsplitJoin, destroyNetsplitState } from "./netsplit"
 import { shouldSuppressNickFlood, destroyAntifloodState } from "./antiflood"
+import { shouldIgnore } from "./ignore"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
@@ -70,6 +71,8 @@ export function bindEvents(client: Client, connectionId: string) {
         lastRead: new Date(),
         users: new Map(),
       })
+      // Switch to the newly joined channel
+      getStore().setActiveBuffer(bufferId)
       // Request channel modes so we get RPL_CHANNELMODEIS (324)
       client.raw(`MODE ${event.channel}`)
     } else {
@@ -79,6 +82,8 @@ export function bindEvents(client: Client, connectionId: string) {
       if (handleNetsplitJoin(connectionId, event.nick, bufferId)) {
         return
       }
+
+      if (shouldIgnore(event.nick, event.ident, event.hostname, "JOINS", event.channel)) return
 
       s.addMessage(bufferId, makeFormattedEvent("join", [
         event.nick, event.ident || "", event.hostname || "", event.channel,
@@ -95,6 +100,7 @@ export function bindEvents(client: Client, connectionId: string) {
       s.removeBuffer(bufferId)
     } else {
       s.removeNick(bufferId, event.nick)
+      if (shouldIgnore(event.nick, event.ident, event.hostname, "PARTS", event.channel)) return
       s.addMessage(bufferId, makeFormattedEvent("part", [
         event.nick, event.ident || "", event.hostname || "", event.channel, event.message || "",
       ]))
@@ -117,6 +123,8 @@ export function bindEvents(client: Client, connectionId: string) {
       return
     }
 
+    if (shouldIgnore(event.nick, event.ident, event.hostname, "QUITS")) return
+
     for (const id of affected) {
       getStore().addMessage(id, makeFormattedEvent("quit", [
         event.nick, event.ident || "", event.hostname || "", event.message || "",
@@ -135,6 +143,7 @@ export function bindEvents(client: Client, connectionId: string) {
       ))
     } else {
       s.removeNick(bufferId, event.kicked)
+      if (shouldIgnore(event.nick, event.ident, event.hostname, "KICKS", event.channel)) return
       s.addMessage(bufferId, makeEventMessage(
         `%Ze0af68${event.kicked}%Z565f89 was kicked by %Za9b1d6${event.nick}%Z565f89 (${event.message || ""})%N`
       ))
@@ -260,8 +269,10 @@ export function bindEvents(client: Client, connectionId: string) {
       .filter(([_, buf]) => buf.connectionId === connectionId && buf.users.has(event.nick))
       .map(([id]) => id)
 
+    const nickIgnored = shouldIgnore(event.nick, event.ident, event.hostname, "NICKS")
     for (const id of affected) {
       getStore().updateNick(id, event.nick, event.new_nick)
+      if (nickIgnored) continue
       if (shouldSuppressNickFlood(connectionId, id)) continue
       getStore().addMessage(id, makeFormattedEvent("nick_change", [
         event.nick, event.new_nick,
