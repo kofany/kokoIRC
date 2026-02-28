@@ -7,6 +7,8 @@ export const DEFAULT_CONFIG: AppConfig = {
     realname: "OpenTUI IRC Client",
     theme: "default",
     timestamp_format: "%H:%M:%S",
+    flood_protection: true,
+    ctcp_version: "kokoIRC \u2014 koko maxed irc client",
   },
   display: {
     nick_column_width: 8,

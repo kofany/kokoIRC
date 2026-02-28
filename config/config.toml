@@ -23,9 +23,9 @@ visible = true
 
 [statusbar]
 enabled = true
-items = [ "active_windows", "nick_info", "channel_info", "lag" ]
+items = [ "time", "active_windows", "nick_info", "channel_info", "lag" ]
 separator = " | "
-prompt = "⠻$channel⠟ "
+prompt = "❱ "
 
 [servers.ircnet]
 label = "IRCnet"

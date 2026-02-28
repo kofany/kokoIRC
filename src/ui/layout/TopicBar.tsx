@@ -1,5 +1,7 @@
 import { useStore } from "@/core/state/store"
+import { parseFormatString, StyledText } from "@/core/theme"
 import { BufferType } from "@/types"
+import type { StyledSpan } from "@/types/theme"
 
 export function TopicBar() {
   const activeBufferId = useStore((s) => s.activeBufferId)
@@ -13,22 +15,32 @@ export function TopicBar() {
   const fgMuted = colors?.fg_muted ?? "#565f89"
   const fg = colors?.fg ?? "#a9b1d6"
 
-  // Query: show "nick (ident@host)" instead of channel topic
   const isQuery = buffer?.type === BufferType.Query
+
+  // Build the topic bar as styled spans
+  const spans: StyledSpan[] = []
+  const plain = (text: string, color?: string): StyledSpan => ({
+    text, fg: color, bold: false, italic: false, underline: false, dim: false,
+  })
+
+  spans.push(plain(name, accent))
+
+  if (isQuery && topic) {
+    spans.push(plain(` (${topic})`, fgMuted))
+  } else if (topic) {
+    spans.push(plain(" — ", fgMuted))
+    // Parse mIRC/IRC formatting codes in topic text
+    const topicSpans = parseFormatString(topic, [])
+    // Set default fg on spans that don't have an explicit color
+    for (const s of topicSpans) {
+      if (!s.fg) s.fg = fg
+    }
+    spans.push(...topicSpans)
+  }
 
   return (
     <box width="100%" backgroundColor={bgAlt}>
-      <text>
-        <span fg={accent}>{name}</span>
-        {isQuery && topic ? (
-          <span fg={fgMuted}> ({topic})</span>
-        ) : (
-          <>
-            {topic ? <span fg={fgMuted}> — </span> : null}
-            {topic ? <span fg={fg}>{topic}</span> : null}
-          </>
-        )}
-      </text>
+      <StyledText spans={spans} />
     </box>
   )
 }

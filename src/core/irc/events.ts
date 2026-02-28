@@ -4,6 +4,7 @@ import { makeBufferId, BufferType, ActivityLevel } from "@/types"
 import type { Message } from "@/types"
 import { formatDuration, formatDate, buildModeString, buildPrefixMap, buildModeOrder, getHighestPrefix, getNickMode } from "./formatting"
 import { handleNetsplitQuit, handleNetsplitJoin, destroyNetsplitState } from "./netsplit"
+import { shouldSuppressNickFlood, destroyAntifloodState } from "./antiflood"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
@@ -261,6 +262,7 @@ export function bindEvents(client: Client, connectionId: string) {
 
     for (const id of affected) {
       getStore().updateNick(id, event.nick, event.new_nick)
+      if (shouldSuppressNickFlood(connectionId, id)) continue
       getStore().addMessage(id, makeFormattedEvent("nick_change", [
         event.nick, event.new_nick,
       ]))
@@ -404,6 +406,7 @@ export function bindEvents(client: Client, connectionId: string) {
   client.on("close", () => {
     clearInterval(lagPingInterval)
     destroyNetsplitState(connectionId)
+    destroyAntifloodState(connectionId)
     getStore().updateConnection(connectionId, { status: "disconnected" })
     statusMsg("%Zf7768eDisconnected from server%N")
   })

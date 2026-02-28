@@ -112,11 +112,11 @@ For more information, read the Bun API docs in `node_modules/bun-types/docs/**.m
 
 ## English Corrections
 
-If the user has made spelling or grammar mistakes in their message, include a correction section at the end of each response:
+If the user has made spelling or grammar mistakes in their message, include a correction section at the end of each response. The correct word should be **bold** and in magenta color:
 
 ```
 ---
-User wrote "something", should be "something"
+User wrote "something", should be **`something`**
 ```
 
 This helps the user improve their English writing skills.

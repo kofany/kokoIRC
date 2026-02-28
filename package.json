@@ -16,7 +16,7 @@
   "dependencies": {
     "@opentui/core": "^0.1.83",
     "@opentui/react": "^0.1.83",
-    "irc-framework": "^4.14.0",
+    "irc-framework": "github:kofany/irc-framework#feature/ctcp-event-consistency",
     "react": "^19.2.4",
     "smol-toml": "^1.6.0",
     "zustand": "^5.0.11"

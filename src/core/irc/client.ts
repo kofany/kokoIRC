@@ -4,6 +4,7 @@ import type { ServerConfig } from "@/types/config"
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
 import { bindEvents } from "./events"
+import { createAntiFloodMiddleware } from "./antiflood"
 
 const clients = new Map<string, Client>()
 
@@ -59,6 +60,7 @@ export function connectServer(id: string, config: ServerConfig): Client {
   })
 
   bindEvents(client, id)
+  client.use(createAntiFloodMiddleware(id))
 
   const connectOpts: ConnectOptions = {
     host: config.address,
@@ -94,6 +96,12 @@ export function connectServer(id: string, config: ServerConfig): Client {
       account: config.sasl_user,
       password: config.sasl_pass ?? "",
     }
+  }
+
+  // Custom CTCP VERSION reply
+  const ctcpVersion = general?.ctcp_version
+  if (ctcpVersion) {
+    connectOpts.version = ctcpVersion
   }
 
   client.connect(connectOpts)

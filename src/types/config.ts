@@ -46,6 +46,8 @@ export interface GeneralConfig {
   realname: string
   theme: string
   timestamp_format: string
+  flood_protection: boolean
+  ctcp_version: string
 }
 
 export interface DisplayConfig {

@@ -1,6 +1,17 @@
 import type { ModeEvent } from "irc-framework"
 import type { Buffer } from "@/types"
 
+/**
+ * Strip mIRC/IRC formatting codes from a string.
+ * Removes: bold (\x02), color (\x03NN,NN), hex color (\x04RRGGBB,RRGGBB),
+ * reset (\x0F), monospace (\x11), reverse (\x16), italic (\x1D),
+ * strikethrough (\x1E), underline (\x1F).
+ */
+export function stripIrcFormatting(text: string): string {
+  // eslint-disable-next-line no-control-regex
+  return text.replace(/\x04([0-9a-fA-F]{6}(,[0-9a-fA-F]{6})?)?|\x03(\d{1,2}(,\d{1,2})?)?|[\x02\x0F\x11\x16\x1D\x1E\x1F]/g, "")
+}
+
 /** Format seconds into human-readable duration (e.g. "2d 5h 30m"). */
 export function formatDuration(seconds: number): string {
   if (seconds < 60) return `${seconds}s`
