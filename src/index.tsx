@@ -7,6 +7,7 @@ const renderer = await createCliRenderer({
   exitOnCtrlC: true,
   autoFocus: true,
   useMouse: true,
+  enableMouseMovement: true,
 })
 
 createRoot(renderer).render(
