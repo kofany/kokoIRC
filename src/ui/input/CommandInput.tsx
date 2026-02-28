@@ -39,6 +39,7 @@ export function CommandInput() {
     isCommand: boolean   // true = completing /command, false = completing nick
     isSubcommand: boolean // true = completing subcommand after /command
   } | null>(null)
+  const isTabCompleting = useRef(false)
 
   const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
   const conn = useStore((s) => {
@@ -128,13 +129,41 @@ export function CommandInput() {
         state = { prefix: partial, matches, index: 0, textBefore: "/", isStartOfLine: false, isCommand: true, isSubcommand: false }
         tabState.current = state
       } else if (currentValue.startsWith("/") && currentValue.includes(" ")) {
-        // ── Subcommand completion: "/server li" → "/server list "
+        // ── Subcommand / help argument completion
         const firstSpace = currentValue.indexOf(" ")
-        const afterSpace = currentValue.slice(firstSpace + 1)
-        // Only complete if there's no second space (still typing first subcommand arg)
-        if (!afterSpace.includes(" ")) {
-          const cmdName = currentValue.slice(1, firstSpace).toLowerCase()
-          const partial = afterSpace.toLowerCase()
+        const cmdName = currentValue.slice(1, firstSpace).toLowerCase()
+        const afterFirst = currentValue.slice(firstSpace + 1)
+
+        if (cmdName === "help") {
+          // /help special case: two levels of completion
+          const secondSpace = afterFirst.indexOf(" ")
+          if (secondSpace === -1) {
+            // "/help <partial>" → complete with command names
+            const partial = afterFirst.toLowerCase()
+            const cmdNames = getCommandNames()
+            const matches = partial ? cmdNames.filter((n) => n.startsWith(partial)) : cmdNames
+            if (matches.length > 0) {
+              state = { prefix: partial, matches, index: 0, textBefore: currentValue.slice(0, firstSpace + 1), isStartOfLine: false, isCommand: false, isSubcommand: true }
+              tabState.current = state
+            }
+          } else {
+            // "/help server <partial>" → complete with that command's subcommands
+            const helpTarget = afterFirst.slice(0, secondSpace).toLowerCase()
+            const partial = afterFirst.slice(secondSpace + 1).toLowerCase()
+            if (!partial.includes(" ")) {
+              const subs = getSubcommands(helpTarget)
+              if (subs.length > 0) {
+                const matches = partial ? subs.filter((s) => s.startsWith(partial)) : subs
+                if (matches.length > 0) {
+                  state = { prefix: partial, matches, index: 0, textBefore: currentValue.slice(0, firstSpace + 1 + secondSpace + 1), isStartOfLine: false, isCommand: false, isSubcommand: true }
+                  tabState.current = state
+                }
+              }
+            }
+          }
+        } else if (!afterFirst.includes(" ")) {
+          // Regular subcommand completion: "/server li" → "/server list "
+          const partial = afterFirst.toLowerCase()
           const subs = getSubcommands(cmdName)
           if (subs.length > 0) {
             const matches = partial ? subs.filter((s) => s.startsWith(partial)) : subs
@@ -155,21 +184,20 @@ export function CommandInput() {
 
     if (!state) return
 
+    let completed: string
     if (state.isCommand) {
-      const completed = "/" + state.matches[state.index] + " "
-      setValue(completed)
-      if (inputRef.current) inputRef.current.value = completed
+      completed = "/" + state.matches[state.index] + " "
     } else if (state.isSubcommand) {
-      const completed = state.textBefore + state.matches[state.index] + " "
-      setValue(completed)
-      if (inputRef.current) inputRef.current.value = completed
+      completed = state.textBefore + state.matches[state.index] + " "
     } else {
       const nick = state.matches[state.index]
       const suffix = state.isStartOfLine ? ": " : " "
-      const completed = state.textBefore + nick + suffix
-      setValue(completed)
-      if (inputRef.current) inputRef.current.value = completed
+      completed = state.textBefore + nick + suffix
     }
+    isTabCompleting.current = true
+    setValue(completed)
+    if (inputRef.current) inputRef.current.value = completed
+    isTabCompleting.current = false
   }, [value, buffer])
 
   const resetTabState = useCallback(() => {
@@ -230,8 +258,8 @@ export function CommandInput() {
         value={value}
         onChange={(v: string) => {
           setValue(v)
-          // Reset tab state when user types (onChange fires on character input, not tab)
-          resetTabState()
+          // Reset tab state when user types, but not during programmatic tab completion
+          if (!isTabCompleting.current) resetTabState()
         }}
         onSubmit={handleSubmit}
         focused

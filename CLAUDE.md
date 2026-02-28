@@ -109,3 +109,14 @@ bun --hot ./index.ts
 ```
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+
+## English Corrections
+
+If the user has made spelling or grammar mistakes in their message, include a correction section at the end of each response:
+
+```
+---
+User wrote "something", should be "something"
+```
+
+This helps the user improve their English writing skills.
