@@ -5,6 +5,7 @@ import { loadConfig } from "@/core/config/loader"
 import { loadTheme } from "@/core/theme/loader"
 import { connectAllAutoconnect } from "@/core/irc"
 import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
+import { loadAllDocs } from "@/core/commands"
 import { BufferType } from "@/types"
 import { SplashScreen } from "@/ui/splash/SplashScreen"
 import { AppLayout } from "@/ui/layout/AppLayout"
@@ -42,6 +43,8 @@ export function App() {
       const themePath = THEME_PATH(config.general.theme)
       const theme = await loadTheme(themePath)
       setTheme(theme)
+
+      await loadAllDocs()
     }
     init().catch((err) => console.error("[init]", err))
   }, [])

@@ -17,43 +17,26 @@ import {
   formatValue,
   listAllSettings,
 } from "./helpers"
+import { showCommandList, showCommandHelp, showSubcommandHelp } from "./help-formatter"
 
 // ─── Command Registry ────────────────────────────────────────
 
 export const commands: Record<string, CommandDef> = {
   help: {
     handler(args) {
-      if (args[0]) {
+      if (args.length >= 2) {
+        const cmd = args[0].replace(/^\//, "").toLowerCase()
+        const sub = args[1].toLowerCase()
+        showSubcommandHelp(cmd, sub)
+      } else if (args[0]) {
         const name = args[0].replace(/^\//, "").toLowerCase()
-        const def = commands[name] ?? findByAlias(name)
-        if (!def) {
-          addLocalEvent(`%Zf7768eUnknown command: ${name}%N`)
-          return
-        }
-        const canonical = getCanonicalName(name)
-        const lines = [
-          `%Z7aa2f7───── /${canonical} ─────────────────────────────%N`,
-          `  %Zc0caf5${def.usage}%N`,
-          `  %Za9b1d6${def.description}%N`,
-        ]
-        if (def.aliases?.length) {
-          lines.push(`  %Z565f89Aliases: ${def.aliases.map((a) => "/" + a).join(", ")}%N`)
-        }
-        lines.push(`%Z7aa2f7─────────────────────────────────────────%N`)
-        for (const line of lines) addLocalEvent(line)
+        showCommandHelp(name)
       } else {
-        const sorted = Object.keys(commands).sort()
-        addLocalEvent(`%Z7aa2f7───── Commands ─────────────────────────────%N`)
-        for (const name of sorted) {
-          const padded = ("/" + name).padEnd(15)
-          addLocalEvent(`  %Z7aa2f7${padded}%Z565f89${commands[name].description}%N`)
-        }
-        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
-        addLocalEvent(`  %Z565f89Type %Z7aa2f7/help <command>%Z565f89 for detailed usage%N`)
+        showCommandList()
       }
     },
     description: "Show help for commands",
-    usage: "/help [command]",
+    usage: "/help [command] [subcommand]",
   },
 
   join: {

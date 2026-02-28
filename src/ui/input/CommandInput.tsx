@@ -1,6 +1,6 @@
 import { useState, useRef, useCallback, useEffect } from "react"
 import { useStore } from "@/core/state/store"
-import { parseCommand, executeCommand, getCommandNames } from "@/core/commands"
+import { parseCommand, executeCommand, getCommandNames, getSubcommands } from "@/core/commands"
 import { getClient } from "@/core/irc"
 import { useKeyboard, useRenderer } from "@opentui/react"
 import { useStatusbarColors } from "@/ui/hooks/useStatusbarColors"
@@ -37,6 +37,7 @@ export function CommandInput() {
     textBefore: string   // text before the word being completed
     isStartOfLine: boolean
     isCommand: boolean   // true = completing /command, false = completing nick
+    isSubcommand: boolean // true = completing subcommand after /command
   } | null>(null)
 
   const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
@@ -85,6 +86,30 @@ export function CommandInput() {
     }
   }, [value, buffer, addMessage])
 
+  const tryNickCompletion = (currentValue: string) => {
+    if (!buffer) return null
+    const nicks = Array.from(buffer.users.keys())
+    if (nicks.length === 0) return null
+
+    const spaceIdx = currentValue.lastIndexOf(" ")
+    const textBefore = spaceIdx >= 0 ? currentValue.slice(0, spaceIdx + 1) : ""
+    const partial = spaceIdx >= 0 ? currentValue.slice(spaceIdx + 1) : currentValue
+    const isStartOfLine = spaceIdx < 0
+
+    if (!partial) return null
+
+    const lower = partial.toLowerCase()
+    const matches = nicks
+      .filter((n) => n.toLowerCase().startsWith(lower))
+      .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
+
+    if (matches.length === 0) return null
+
+    const s = { prefix: partial, matches, index: 0, textBefore, isStartOfLine, isCommand: false, isSubcommand: false }
+    tabState.current = s
+    return s
+  }
+
   const handleTabCompletion = useCallback(() => {
     const currentValue = inputRef.current?.value ?? value
     let state = tabState.current
@@ -100,35 +125,42 @@ export function CommandInput() {
         const cmdNames = getCommandNames()
         const matches = cmdNames.filter((n) => n.startsWith(partial))
         if (matches.length === 0) return
-        state = { prefix: partial, matches, index: 0, textBefore: "/", isStartOfLine: false, isCommand: true }
+        state = { prefix: partial, matches, index: 0, textBefore: "/", isStartOfLine: false, isCommand: true, isSubcommand: false }
         tabState.current = state
+      } else if (currentValue.startsWith("/") && currentValue.includes(" ")) {
+        // ── Subcommand completion: "/server li" → "/server list "
+        const firstSpace = currentValue.indexOf(" ")
+        const afterSpace = currentValue.slice(firstSpace + 1)
+        // Only complete if there's no second space (still typing first subcommand arg)
+        if (!afterSpace.includes(" ")) {
+          const cmdName = currentValue.slice(1, firstSpace).toLowerCase()
+          const partial = afterSpace.toLowerCase()
+          const subs = getSubcommands(cmdName)
+          if (subs.length > 0) {
+            const matches = partial ? subs.filter((s) => s.startsWith(partial)) : subs
+            if (matches.length > 0) {
+              state = { prefix: partial, matches, index: 0, textBefore: currentValue.slice(0, firstSpace + 1), isStartOfLine: false, isCommand: false, isSubcommand: true }
+              tabState.current = state
+            }
+          }
+        }
+        // Fall through to nick completion if no subcommand matches
+        if (!state) {
+          state = tryNickCompletion(currentValue)
+        }
       } else {
-        // ── Nick completion
-        if (!buffer) return
-        const nicks = Array.from(buffer.users.keys())
-        if (nicks.length === 0) return
-
-        const spaceIdx = currentValue.lastIndexOf(" ")
-        const textBefore = spaceIdx >= 0 ? currentValue.slice(0, spaceIdx + 1) : ""
-        const partial = spaceIdx >= 0 ? currentValue.slice(spaceIdx + 1) : currentValue
-        const isStartOfLine = spaceIdx < 0
-
-        if (!partial) return
-
-        const lower = partial.toLowerCase()
-        const matches = nicks
-          .filter((n) => n.toLowerCase().startsWith(lower))
-          .sort((a, b) => a.toLowerCase().localeCompare(b.toLowerCase()))
-
-        if (matches.length === 0) return
-
-        state = { prefix: partial, matches, index: 0, textBefore, isStartOfLine, isCommand: false }
-        tabState.current = state
+        state = tryNickCompletion(currentValue)
       }
     }
 
+    if (!state) return
+
     if (state.isCommand) {
       const completed = "/" + state.matches[state.index] + " "
+      setValue(completed)
+      if (inputRef.current) inputRef.current.value = completed
+    } else if (state.isSubcommand) {
+      const completed = state.textBefore + state.matches[state.index] + " "
       setValue(completed)
       if (inputRef.current) inputRef.current.value = completed
     } else {
