@@ -30,3 +30,6 @@ logs/
 
 # OS
 .DS_Store
+
+# compiled binary
+openirc

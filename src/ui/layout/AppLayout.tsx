@@ -93,7 +93,7 @@ export function AppLayout({ sidebar, chat, nicklist, input, topicbar, statusline
         {leftVisible && (
           <box
             position="absolute"
-            left={liveLeftWidth - 1}
+            left={liveLeftWidth - 2}
             top={0}
             width={2}
             height="100%"
