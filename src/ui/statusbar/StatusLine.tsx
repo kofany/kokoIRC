@@ -10,6 +10,7 @@ export function StatusLine() {
   const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
   const connections = useStore((s) => s.connections)
   const activeBufferId = useStore((s) => s.activeBufferId)
+  const setActiveBuffer = useStore((s) => s.setActiveBuffer)
 
   // Ticking clock — re-render every second
   const [now, setNow] = useState(new Date())
@@ -57,7 +58,7 @@ export function StatusLine() {
       parts.push(<span key={`${key}-${pi++}`} fg={sb.muted}>{format.slice(lastIndex)}</span>)
     }
 
-    return <span key={key}>{parts}</span>
+    return <text key={key}>{parts}</text>
   }
 
   const renderedItems: React.ReactNode[] = []
@@ -66,7 +67,7 @@ export function StatusLine() {
     const item = items[i]
     if (i > 0) {
       renderedItems.push(
-        <span key={`sep-${i}`} fg={sb.dim}>{sb.separator}</span>
+        <text key={`sep-${i}`}><span fg={sb.dim}>{sb.separator}</span></text>
       )
     }
     renderedItems.push(renderItem(item, i))
@@ -84,7 +85,7 @@ export function StatusLine() {
   }
 
   function renderActiveWindows(idx: number): React.ReactNode {
-    const activityItems: React.ReactNode[] = []
+    const entries: { winNum: number; color: string; bufferId: string }[] = []
     let activeWinNum = 0
     for (let i = 0; i < sortedBuffers.length; i++) {
       const buf = sortedBuffers[i]
@@ -100,18 +101,46 @@ export function StatusLine() {
       else if (buf.activity >= ActivityLevel.Highlight) color = "#f7768e"
       else if (buf.activity >= ActivityLevel.Activity) color = "#e0af68"
 
-      if (activityItems.length > 0) {
-        activityItems.push(<span key={`as-${winNum}`} fg={sb.dim}>,</span>)
-      }
-      activityItems.push(
-        <span key={`a-${winNum}`} fg={color}>{winNum}</span>
-      )
+      entries.push({ winNum, color, bufferId: buf.id })
     }
 
-    return renderWithFormat(getItemFormat("active_windows"), {
-      win: <span fg={sb.accent}>{activeWinNum}</span>,
-      activity: activityItems.length > 0 ? <span>{activityItems}</span> : null,
-    }, `act-${idx}`)
+    // Split format at $activity to render numbers as individual clickable elements
+    const format = getItemFormat("active_windows")
+    const actIdx = format.indexOf("$activity")
+    const result: React.ReactNode[] = []
+
+    // Render prefix (everything before $activity, contains $win)
+    const prefix = actIdx >= 0 ? format.slice(0, actIdx) : format
+    if (prefix) {
+      result.push(renderWithFormat(prefix, {
+        win: <span fg={sb.accent}>{activeWinNum}</span>,
+      }, `awp-${idx}`))
+    }
+
+    // Render each activity number as a clickable <text>
+    if (actIdx >= 0 && entries.length > 0) {
+      for (let j = 0; j < entries.length; j++) {
+        const e = entries[j]
+        if (j > 0) {
+          result.push(<text key={`ac-${e.winNum}`}><span fg={sb.dim}>,</span></text>)
+        }
+        result.push(
+          <text key={`a-${e.winNum}`} onMouseDown={() => setActiveBuffer(e.bufferId)}>
+            <span fg={e.color}>{e.winNum}</span>
+          </text>
+        )
+      }
+    }
+
+    // Render suffix (everything after $activity)
+    if (actIdx >= 0) {
+      const suffix = format.slice(actIdx + 9)
+      if (suffix) {
+        result.push(renderWithFormat(suffix, {}, `aws-${idx}`))
+      }
+    }
+
+    return <>{result}</>
   }
 
   function renderNickInfo(idx: number): React.ReactNode {
@@ -174,12 +203,10 @@ export function StatusLine() {
   }
 
   return (
-    <box width="100%" height={1}>
-      <text>
-        <span fg={sb.dim}>[</span>
-        {renderedItems}
-        <span fg={sb.dim}>]</span>
-      </text>
+    <box width="100%" height={1} flexDirection="row">
+      <text><span fg={sb.dim}>[</span></text>
+      {renderedItems}
+      <text><span fg={sb.dim}>]</span></text>
     </box>
   )
 }
