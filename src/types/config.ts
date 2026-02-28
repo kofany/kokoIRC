@@ -7,6 +7,7 @@ export interface StatusbarConfig {
   enabled: boolean
   items: StatusbarItem[]
   separator: string
+  item_formats: Record<string, string>
 
   // Shared appearance for the whole bottom area (status + input)
   background: string
@@ -20,6 +21,14 @@ export interface StatusbarConfig {
   prompt_color: string
   input_color: string
   cursor_color: string
+}
+
+export const DEFAULT_ITEM_FORMATS: Record<StatusbarItem, string> = {
+  active_windows: "Act: $win $activity",
+  nick_info: "$nick$modes",
+  channel_info: "$name$modes",
+  lag: "Lag: $lag",
+  time: "$time",
 }
 
 export interface AppConfig {

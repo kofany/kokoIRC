@@ -50,6 +50,7 @@ export interface Buffer {
   topicSetBy?: string
   users: Map<string, NickEntry>
   modes?: string
+  modeParams?: Record<string, string>
 }
 
 // === Message ===

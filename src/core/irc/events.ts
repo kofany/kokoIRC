@@ -69,6 +69,8 @@ export function bindEvents(client: Client, connectionId: string) {
         lastRead: new Date(),
         users: new Map(),
       })
+      // Request channel modes so we get RPL_CHANNELMODEIS (324)
+      client.raw(`MODE ${event.channel}`)
     } else {
       s.addNick(bufferId, { nick: event.nick, prefix: "", modes: "", away: false, account: event.account })
 
@@ -93,7 +95,7 @@ export function bindEvents(client: Client, connectionId: string) {
     } else {
       s.removeNick(bufferId, event.nick)
       s.addMessage(bufferId, makeFormattedEvent("part", [
-        event.nick, event.channel, event.message || "",
+        event.nick, event.ident || "", event.hostname || "", event.channel, event.message || "",
       ]))
     }
   })
@@ -116,7 +118,7 @@ export function bindEvents(client: Client, connectionId: string) {
 
     for (const id of affected) {
       getStore().addMessage(id, makeFormattedEvent("quit", [
-        event.nick, event.message || "",
+        event.nick, event.ident || "", event.hostname || "", event.message || "",
       ]))
     }
   })
@@ -276,6 +278,14 @@ export function bindEvents(client: Client, connectionId: string) {
     }
   })
 
+  client.on("topicsetby", (event) => {
+    const bufferId = makeBufferId(connectionId, event.channel)
+    const when = event.when ? formatDate(new Date(event.when * 1000)) : ""
+    getStore().addMessage(bufferId, makeEventMessage(
+      `%Z565f89Topic set by %Za9b1d6${event.nick}%Z565f89${when ? " on " + when : ""}%N`
+    ))
+  })
+
   client.on("userlist", (event) => {
     const bufferId = makeBufferId(connectionId, event.channel)
     if (!getStore().buffers.has(bufferId)) return
@@ -350,6 +360,28 @@ export function bindEvents(client: Client, connectionId: string) {
         modes,
         prefix: getHighestPrefix(modes, modeOrder, prefixMap),
       })
+    }
+
+    // Update channel modes (non-nick-prefix modes)
+    const buf = getStore().buffers.get(bufferId)
+    if (buf) {
+      let chanModes = buf.modes ?? ""
+      const params: Record<string, string> = { ...buf.modeParams }
+      for (const mc of event.modes) {
+        const isAdding = mc.mode.startsWith("+")
+        const modeChar = mc.mode.replace(/[+-]/, "")
+        if (modeOrder.includes(modeChar)) continue // nick prefix mode
+        if (isAdding && !chanModes.includes(modeChar)) {
+          chanModes += modeChar
+        } else if (!isAdding) {
+          chanModes = chanModes.replace(modeChar, "")
+          delete params[modeChar]
+        }
+        if (isAdding && mc.param) {
+          params[modeChar] = mc.param
+        }
+      }
+      getStore().updateBufferModes(bufferId, chanModes, params)
     }
   })
 
@@ -439,6 +471,12 @@ export function bindEvents(client: Client, connectionId: string) {
   client.on("server options", (event) => {
     const s = getStore()
     s.updateConnection(connectionId, { isupport: event.options || {} })
+  })
+
+  // RPL_UMODEIS — user's own modes (emitted on connect and after MODE <nick>)
+  client.on("user info", (event) => {
+    const modes = (event.raw_modes || "").replace(/^\+/, "")
+    getStore().updateConnection(connectionId, { userModes: modes })
   })
 
   // ─── MOTD ──────────────────────────────────────────────────
@@ -549,15 +587,81 @@ export function bindEvents(client: Client, connectionId: string) {
     statusMsg(`%Z9ece6aLogged in as %Zc0caf5${event.account}%N`)
   })
 
+  client.on("loggedout", () => {
+    statusMsg(`%Ze0af68Logged out from account%N`)
+  })
+
+  // ACCOUNT-NOTIFY — a user's account changed (requires account-notify cap)
+  client.on("account", (event) => {
+    const s = getStore()
+    for (const [bufId, buf] of s.buffers) {
+      if (buf.connectionId === connectionId && buf.users.has(event.nick)) {
+        const entry = buf.users.get(event.nick)!
+        getStore().addNick(bufId, {
+          ...entry,
+          account: event.account === false ? undefined : event.account,
+        })
+      }
+    }
+  })
+
   // ─── Displayed host ────────────────────────────────────────
   client.on("displayed host", (event) => {
     statusMsg(`%Z565f89Your displayed host is now %Za9b1d6${event.hostname}%N`)
+  })
+
+  // ─── Channel info (324 modes, 329 creation time, 328 URL) ─
+  client.on("channel info", (event) => {
+    const bufferId = makeBufferId(connectionId, event.channel)
+
+    // 324 — RPL_CHANNELMODEIS
+    if (event.raw_modes) {
+      const modeChars = event.raw_modes.replace(/^\+/, "")
+      const params: Record<string, string> = {}
+      if (event.modes) {
+        for (const mc of event.modes) {
+          const ch = mc.mode.replace(/[+-]/, "")
+          if (mc.param) params[ch] = mc.param
+        }
+      }
+      getStore().updateBufferModes(bufferId, modeChars, params)
+    }
+
+    // 329 — RPL_CREATIONTIME
+    if (event.created_at) {
+      const buf = getStore().buffers.get(bufferId)
+      if (buf) {
+        getStore().addMessage(bufferId, makeEventMessage(
+          `%Z565f89Channel created: ${formatDate(new Date(event.created_at * 1000))}%N`
+        ))
+      }
+    }
   })
 
   // ─── Wallops ───────────────────────────────────────────────
   client.on("wallops", (event) => {
     const from = event.from_server ? "Server" : event.nick
     statusMsg(`%Zbb9af7[Wallops/${from}] ${event.message}%N`)
+  })
+
+  // ─── CTCP ─────────────────────────────────────────────────
+  client.on("ctcp response", (event) => {
+    const s = getStore()
+    const target = s.activeBufferId ?? statusId
+    s.addMessage(target, makeEventMessage(
+      `%Z565f89CTCP %Za9b1d6${event.type}%Z565f89 reply from %Zc0caf5${event.nick}%Z565f89: ${event.message}%N`
+    ))
+  })
+
+  client.on("ctcp request", (event) => {
+    // VERSION is handled internally by irc-framework unless version: null
+    // Show other CTCP requests (ACTION is handled separately)
+    if (event.type === "ACTION" || event.type === "VERSION") return
+    const s = getStore()
+    const target = s.activeBufferId ?? statusId
+    s.addMessage(target, makeEventMessage(
+      `%Z565f89CTCP %Za9b1d6${event.type}%Z565f89 from %Zc0caf5${event.nick}%Z565f89${event.message ? ": " + event.message : ""}%N`
+    ))
   })
 
   // ─── Catch-all for unhandled numerics ──────────────────────

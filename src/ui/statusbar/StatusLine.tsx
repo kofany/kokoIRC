@@ -2,7 +2,7 @@ import { useState, useEffect } from "react"
 import { useStore } from "@/core/state/store"
 import { useSortedBuffers } from "@/core/state/selectors"
 import { BufferType, ActivityLevel } from "@/types"
-import type { StatusbarItem } from "@/types/config"
+import { DEFAULT_ITEM_FORMATS, type StatusbarItem } from "@/types/config"
 import { useStatusbarColors } from "@/ui/hooks/useStatusbarColors"
 
 export function StatusLine() {
@@ -11,21 +11,54 @@ export function StatusLine() {
   const connections = useStore((s) => s.connections)
   const activeBufferId = useStore((s) => s.activeBufferId)
 
-  // Ticking clock — re-render every 60s
+  // Ticking clock — re-render every second
   const [now, setNow] = useState(new Date())
   useEffect(() => {
-    const id = setInterval(() => setNow(new Date()), 60_000)
+    const id = setInterval(() => setNow(new Date()), 1_000)
     return () => clearInterval(id)
   }, [])
 
   const sortedBuffers = useSortedBuffers()
-
   const sb = useStatusbarColors()
 
   if (!config?.statusbar.enabled) return null
 
   const conn = buffer ? connections.get(buffer.connectionId) : null
   const items = config.statusbar.items
+
+  function getItemFormat(item: StatusbarItem): string {
+    return config!.statusbar.item_formats?.[item] ?? DEFAULT_ITEM_FORMATS[item]
+  }
+
+  /** Parse a format string with $variables and render colored slots as JSX. */
+  function renderWithFormat(
+    format: string,
+    slots: Record<string, React.ReactNode>,
+    key: string,
+  ): React.ReactNode {
+    const parts: React.ReactNode[] = []
+    const regex = /\$([a-z_]+)/g
+    let lastIndex = 0
+    let pi = 0
+    let match: RegExpExecArray | null
+
+    while ((match = regex.exec(format)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(<span key={`${key}-${pi++}`} fg={sb.muted}>{format.slice(lastIndex, match.index)}</span>)
+      }
+      const slot = slots[match[1]]
+      if (slot != null) {
+        parts.push(<span key={`${key}-${pi++}`}>{slot}</span>)
+      }
+      lastIndex = regex.lastIndex
+    }
+
+    if (lastIndex < format.length) {
+      parts.push(<span key={`${key}-${pi++}`} fg={sb.muted}>{format.slice(lastIndex)}</span>)
+    }
+
+    return <span key={key}>{parts}</span>
+  }
 
   const renderedItems: React.ReactNode[] = []
 
@@ -41,18 +74,12 @@ export function StatusLine() {
 
   function renderItem(item: StatusbarItem, idx: number): React.ReactNode {
     switch (item) {
-      case "active_windows":
-        return renderActiveWindows(idx)
-      case "nick_info":
-        return renderNickInfo(idx)
-      case "channel_info":
-        return renderChannelInfo(idx)
-      case "lag":
-        return renderLag(idx)
-      case "time":
-        return renderTime(idx)
-      default:
-        return null
+      case "active_windows": return renderActiveWindows(idx)
+      case "nick_info": return renderNickInfo(idx)
+      case "channel_info": return renderChannelInfo(idx)
+      case "lag": return renderLag(idx)
+      case "time": return renderTime(idx)
+      default: return null
     }
   }
 
@@ -81,56 +108,50 @@ export function StatusLine() {
       )
     }
 
-    return (
-      <span key={`act-${idx}`} fg={sb.muted}>
-        Act: <span fg={sb.accent}>{activeWinNum}</span>
-        {activityItems.length > 0 ? (
-          <>
-            <span fg={sb.dim}> </span>
-            {activityItems}
-          </>
-        ) : null}
-      </span>
-    )
+    return renderWithFormat(getItemFormat("active_windows"), {
+      win: <span fg={sb.accent}>{activeWinNum}</span>,
+      activity: activityItems.length > 0 ? <span>{activityItems}</span> : null,
+    }, `act-${idx}`)
   }
 
   function renderNickInfo(idx: number): React.ReactNode {
     const nick = conn?.nick ?? "?"
-    const modes = conn?.userModes ? `+${conn.userModes}` : ""
-    return (
-      <span key={`nick-${idx}`} fg={sb.muted}>
-        <span fg={sb.accent}>{nick}</span>
-        {modes ? <span fg={sb.muted}>({modes})</span> : null}
-      </span>
-    )
+    const modes = conn?.userModes ? `(+${conn.userModes})` : ""
+    return renderWithFormat(getItemFormat("nick_info"), {
+      nick: <span fg={sb.accent}>{nick}</span>,
+      modes: modes ? <span fg={sb.muted}>{modes}</span> : null,
+    }, `nick-${idx}`)
   }
 
   function renderChannelInfo(idx: number): React.ReactNode {
     if (!buffer) return null
+    let nameNode: React.ReactNode = null
+    let modesNode: React.ReactNode = null
+
     if (buffer.type === BufferType.Channel) {
-      const modes = buffer.modes ? `+${buffer.modes}` : ""
-      return (
-        <span key={`chan-${idx}`} fg={sb.muted}>
-          <span fg={sb.accent}>{buffer.name}</span>
-          {modes ? <span fg={sb.muted}>({modes})</span> : null}
-        </span>
-      )
+      nameNode = <span fg={sb.accent}>{buffer.name}</span>
+      if (buffer.modes) {
+        // Append params for modes that have them (e.g. +l 50, +k secret)
+        const paramStr = buffer.modes
+          .split("")
+          .map((ch) => buffer.modeParams?.[ch])
+          .filter(Boolean)
+          .join(" ")
+        const display = `(+${buffer.modes}${paramStr ? " " + paramStr : ""})`
+        modesNode = <span fg={sb.muted}>{display}</span>
+      }
+    } else if (buffer.type === BufferType.Query) {
+      nameNode = <span fg="#e0af68">{buffer.name}</span>
+    } else if (buffer.type === BufferType.Server) {
+      nameNode = <span fg={sb.muted}>{conn?.label ?? "server"}</span>
+    } else {
+      return null
     }
-    if (buffer.type === BufferType.Query) {
-      return (
-        <span key={`chan-${idx}`} fg={sb.muted}>
-          <span fg="#e0af68">{buffer.name}</span>
-        </span>
-      )
-    }
-    if (buffer.type === BufferType.Server) {
-      return (
-        <span key={`chan-${idx}`} fg={sb.muted}>
-          <span fg={sb.muted}>{conn?.label ?? "server"}</span>
-        </span>
-      )
-    }
-    return null
+
+    return renderWithFormat(getItemFormat("channel_info"), {
+      name: nameNode,
+      modes: modesNode,
+    }, `chan-${idx}`)
   }
 
   function renderLag(idx: number): React.ReactNode {
@@ -138,19 +159,18 @@ export function StatusLine() {
     if (lag == null) return null
     const seconds = (lag / 1000).toFixed(1)
     const lagColor = lag > 5000 ? "#f7768e" : lag > 2000 ? "#e0af68" : "#9ece6a"
-    return (
-      <span key={`lag-${idx}`} fg={sb.muted}>
-        Lag: <span fg={lagColor}>{seconds}s</span>
-      </span>
-    )
+    return renderWithFormat(getItemFormat("lag"), {
+      lag: <span fg={lagColor}>{seconds}s</span>,
+    }, `lag-${idx}`)
   }
 
   function renderTime(idx: number): React.ReactNode {
     const h = String(now.getHours()).padStart(2, "0")
     const m = String(now.getMinutes()).padStart(2, "0")
-    return (
-      <span key={`time-${idx}`} fg={sb.muted}>{h}:{m}</span>
-    )
+    const s = String(now.getSeconds()).padStart(2, "0")
+    return renderWithFormat(getItemFormat("time"), {
+      time: <span fg={sb.muted}>{h}:{m}:{s}</span>,
+    }, `time-${idx}`)
   }
 
   return (

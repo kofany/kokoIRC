@@ -11,7 +11,7 @@ export function cloneConfig(config: AppConfig): AppConfig {
       left: { ...config.sidepanel.left },
       right: { ...config.sidepanel.right },
     },
-    statusbar: { ...config.statusbar },
+    statusbar: { ...config.statusbar, items: [...config.statusbar.items], item_formats: { ...config.statusbar.item_formats } },
     servers: Object.fromEntries(
       Object.entries(config.servers).map(([id, srv]) => [id, { ...srv, channels: [...srv.channels] }])
     ),
@@ -113,6 +113,9 @@ export async function saveConfig(configPath: string, config: AppConfig): Promise
   if (sb.prompt_color) tomlObj.statusbar.prompt_color = sb.prompt_color
   if (sb.input_color) tomlObj.statusbar.input_color = sb.input_color
   if (sb.cursor_color) tomlObj.statusbar.cursor_color = sb.cursor_color
+  if (sb.item_formats && Object.keys(sb.item_formats).length > 0) {
+    tomlObj.statusbar.item_formats = sb.item_formats
+  }
 
   if (Object.keys(config.aliases).length > 0) {
     tomlObj.aliases = config.aliases

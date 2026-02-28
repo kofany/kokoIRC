@@ -30,8 +30,9 @@ interface AppState {
   removeNick: (bufferId: string, nick: string) => void
   updateNick: (bufferId: string, oldNick: string, newNick: string, prefix?: string) => void
 
-  // Buffer topic
+  // Buffer topic & modes
   updateBufferTopic: (bufferId: string, topic: string, setBy?: string) => void
+  updateBufferModes: (bufferId: string, modes: string, modeParams?: Record<string, string>) => void
 
   // Config/Theme
   setConfig: (config: AppConfig) => void
@@ -151,6 +152,14 @@ export const useStore = create<AppState>((set, get) => ({
     const buf = buffers.get(bufferId)
     if (!buf) return s
     buffers.set(bufferId, { ...buf, topic, topicSetBy: setBy })
+    return { buffers }
+  }),
+
+  updateBufferModes: (bufferId, modes, modeParams) => set((s) => {
+    const buffers = new Map(s.buffers)
+    const buf = buffers.get(bufferId)
+    if (!buf) return s
+    buffers.set(bufferId, { ...buf, modes, modeParams: modeParams ?? buf.modeParams })
     return { buffers }
   }),
 

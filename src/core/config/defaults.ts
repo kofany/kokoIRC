@@ -24,6 +24,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     enabled: true,
     items: ["active_windows", "nick_info", "channel_info", "lag"],
     separator: " | ",
+    item_formats: {},
 
     // "" means "use theme color" — resolved at render time
     background: "",

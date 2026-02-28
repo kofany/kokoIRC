@@ -3,7 +3,8 @@ import { useStore } from "@/core/state/store"
 import { loadConfig, saveConfig, saveCredentialsToEnv, cloneConfig } from "@/core/config/loader"
 import { loadTheme } from "@/core/theme/loader"
 import { BufferType, makeBufferId, ActivityLevel } from "@/types"
-import type { ServerConfig } from "@/types/config"
+import { DEFAULT_ITEM_FORMATS, type ServerConfig, type StatusbarItem } from "@/types/config"
+import { DEFAULT_CONFIG } from "@/core/config/defaults"
 import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
 import type { CommandDef } from "./types"
 import {
@@ -844,6 +845,186 @@ export const commands: Record<string, CommandDef> = {
     description: "Kickban a user (kick then ban *!*ident@host)",
     usage: "/kb <nick> [reason]",
     aliases: ["kickban"],
+  },
+
+  items: {
+    async handler(args) {
+      const s = useStore.getState()
+      if (!s.config) return
+      const sub = args[0]?.toLowerCase()
+      const validItems = Object.keys(DEFAULT_ITEM_FORMATS) as StatusbarItem[]
+
+      if (!sub || sub === "list") {
+        const currentItems = s.config.statusbar.items
+        addLocalEvent(`%Z7aa2f7───── Statusbar Items ─────────────────────%N`)
+        for (let i = 0; i < currentItems.length; i++) {
+          const fmt = s.config.statusbar.item_formats?.[currentItems[i]] ?? DEFAULT_ITEM_FORMATS[currentItems[i] as StatusbarItem] ?? ""
+          addLocalEvent(`  %Z7aa2f7${(i + 1).toString().padEnd(3)}%Za9b1d6${currentItems[i].padEnd(18)}%Z565f89${fmt}%N`)
+        }
+        addLocalEvent(`  %Z565f89Separator:%N %Zc0caf5"${s.config.statusbar.separator}"%N`)
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
+        return
+      }
+
+      if (sub === "available") {
+        const current = new Set(s.config.statusbar.items)
+        addLocalEvent(`%Z7aa2f7───── Available Items ────────────────────%N`)
+        for (const item of validItems) {
+          const active = current.has(item) ? "%Z9ece6a●%N" : "%Z565f89○%N"
+          const fmt = DEFAULT_ITEM_FORMATS[item]
+          addLocalEvent(`  ${active} %Za9b1d6${item.padEnd(18)}%Z565f89${fmt}%N`)
+        }
+        addLocalEvent(`  %Z565f89Variables: $win $activity $nick $modes $name $lag $time%N`)
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
+        return
+      }
+
+      if (sub === "add") {
+        const item = args[1]?.toLowerCase()
+        if (!item) {
+          addLocalEvent(`%Zf7768eUsage: /items add <item>%N`)
+          return
+        }
+        if (!validItems.includes(item as StatusbarItem)) {
+          addLocalEvent(`%Zf7768eUnknown item: ${item}. Available: ${validItems.join(", ")}%N`)
+          return
+        }
+        if (s.config.statusbar.items.includes(item as StatusbarItem)) {
+          addLocalEvent(`%Ze0af68Item '${item}' already in statusbar%N`)
+          return
+        }
+        const config = cloneConfig(s.config)
+        config.statusbar.items = [...config.statusbar.items, item as StatusbarItem]
+        s.setConfig(config)
+        try {
+          await saveConfig(CONFIG_PATH, config)
+          addLocalEvent(`%Z9ece6aAdded '${item}' to statusbar%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+        }
+        return
+      }
+
+      if (sub === "remove" || sub === "del") {
+        const item = args[1]?.toLowerCase()
+        if (!item) {
+          addLocalEvent(`%Zf7768eUsage: /items remove <item>%N`)
+          return
+        }
+        if (!s.config.statusbar.items.includes(item as StatusbarItem)) {
+          addLocalEvent(`%Zf7768eItem '${item}' not in statusbar%N`)
+          return
+        }
+        const config = cloneConfig(s.config)
+        config.statusbar.items = config.statusbar.items.filter((i) => i !== item)
+        s.setConfig(config)
+        try {
+          await saveConfig(CONFIG_PATH, config)
+          addLocalEvent(`%Z9ece6aRemoved '${item}' from statusbar%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+        }
+        return
+      }
+
+      if (sub === "move") {
+        const item = args[1]?.toLowerCase()
+        const pos = parseInt(args[2], 10)
+        if (!item || isNaN(pos)) {
+          addLocalEvent(`%Zf7768eUsage: /items move <item> <position>%N`)
+          return
+        }
+        const currentItems = [...s.config.statusbar.items]
+        const idx = currentItems.indexOf(item as StatusbarItem)
+        if (idx === -1) {
+          addLocalEvent(`%Zf7768eItem '${item}' not in statusbar%N`)
+          return
+        }
+        currentItems.splice(idx, 1)
+        const newIdx = Math.max(0, Math.min(currentItems.length, pos - 1))
+        currentItems.splice(newIdx, 0, item as StatusbarItem)
+        const config = cloneConfig(s.config)
+        config.statusbar.items = currentItems
+        s.setConfig(config)
+        try {
+          await saveConfig(CONFIG_PATH, config)
+          addLocalEvent(`%Z9ece6aMoved '${item}' to position ${newIdx + 1}%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+        }
+        return
+      }
+
+      if (sub === "separator" || sub === "sep") {
+        if (args.length <= 1) {
+          addLocalEvent(`%Z565f89Current separator:%N %Zc0caf5"${s.config.statusbar.separator}"%N`)
+          return
+        }
+        const config = cloneConfig(s.config)
+        config.statusbar.separator = args.slice(1).join(" ")
+        s.setConfig(config)
+        try {
+          await saveConfig(CONFIG_PATH, config)
+          addLocalEvent(`%Z9ece6aSeparator set to "%Zc0caf5${config.statusbar.separator}%Z9ece6a"%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+        }
+        return
+      }
+
+      if (sub === "format" || sub === "fmt") {
+        const item = args[1]?.toLowerCase()
+        if (!item) {
+          addLocalEvent(`%Zf7768eUsage: /items format <item> [format_string]%N`)
+          addLocalEvent(`%Z565f89Variables: $win, $activity, $nick, $modes, $name, $lag, $time%N`)
+          return
+        }
+        if (!validItems.includes(item as StatusbarItem)) {
+          addLocalEvent(`%Zf7768eUnknown item: ${item}%N`)
+          return
+        }
+        if (args.length <= 2) {
+          const fmt = s.config.statusbar.item_formats?.[item] ?? DEFAULT_ITEM_FORMATS[item as StatusbarItem]
+          addLocalEvent(`%Z7aa2f7${item}%N format: %Zc0caf5${fmt}%N`)
+          const defaultFmt = DEFAULT_ITEM_FORMATS[item as StatusbarItem]
+          if (s.config.statusbar.item_formats?.[item]) {
+            addLocalEvent(`  %Z565f89Default: ${defaultFmt}%N`)
+          }
+          return
+        }
+        const formatStr = args.slice(2).join(" ")
+        const config = cloneConfig(s.config)
+        config.statusbar.item_formats[item] = formatStr
+        s.setConfig(config)
+        try {
+          await saveConfig(CONFIG_PATH, config)
+          addLocalEvent(`%Z9ece6a${item}%N format set to: %Zc0caf5${formatStr}%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+        }
+        return
+      }
+
+      if (sub === "reset") {
+        const config = cloneConfig(s.config)
+        config.statusbar.items = [...DEFAULT_CONFIG.statusbar.items]
+        config.statusbar.item_formats = {}
+        config.statusbar.separator = DEFAULT_CONFIG.statusbar.separator
+        s.setConfig(config)
+        try {
+          await saveConfig(CONFIG_PATH, config)
+          addLocalEvent(`%Z9ece6aStatusbar reset to defaults%N`)
+        } catch (err: any) {
+          addLocalEvent(`%Zf7768eFailed to save: ${err.message}%N`)
+        }
+        return
+      }
+
+      addLocalEvent(`%Zf7768eUnknown subcommand: /items ${sub}%N`)
+      addLocalEvent(`%Z565f89Use: list, add, remove, move, format, separator, available, reset%N`)
+    },
+    description: "Manage statusbar items and formats",
+    usage: "/items [list|add|remove|move|format|separator|available|reset] [args...]",
   },
 
   disconnect: {
