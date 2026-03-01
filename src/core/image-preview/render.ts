@@ -5,6 +5,7 @@ import { detectProtocol, isInsideTmux } from "./detect"
 import { isCached, writeCache } from "./cache"
 import { classifyUrl, fetchImage } from "./fetch"
 import { encodeKittyRGBA, encodeKittyPNG, encodeIterm2, encodeSixel, encodeSymbols, wrapTmuxDCS, type KittyFormat } from "./encode"
+import { pauseStdin, resumeStdin } from "./stdin-guard"
 
 // Mouse tracking escape sequences — disable during image write to prevent
 // accumulated stdin mouse events from crashing Bun's event loop (malloc double-free).
@@ -193,8 +194,10 @@ export async function preparePreview(url: string): Promise<void> {
     })
 
     // 9. Write image directly to stdout, bypassing React/OpenTUI
-    //    Use setTimeout to let the overlay box render first
-    setTimeout(() => {
+    //    Use setTimeout to let the overlay box render first.
+    //    Async callback: yields to event loop between tmux DCS chunks via Bun.sleep(),
+    //    avoiding the busy-wait that caused malloc double-free (kqueue stdin race).
+    setTimeout(async () => {
       if (!useStore.getState().imagePreview) return
 
       const popupWidth = displayCols + 2
@@ -207,10 +210,12 @@ export async function preparePreview(url: string): Promise<void> {
       const interiorCol = left + 1
 
       try {
-        // Disable mouse tracking BEFORE writing image data.
-        // While writeSync blocks Bun's event loop, the terminal still sends mouse
-        // events through stdin. These accumulate in kernel buffers and when the event
-        // loop resumes, Bun's internal buffer handling can trigger a malloc double-free.
+        // Pause stdin to prevent Bun's kqueue I/O from reading stdin during writes.
+        // Without this, accumulated stdin data causes malloc double-free in Bun's
+        // internal buffer management when the event loop processes the burst.
+        pauseStdin()
+
+        // Disable mouse tracking at terminal level
         writeSync(1, MOUSE_DISABLE)
 
         // Write EACH chunk as a separate writeSync call.
@@ -218,21 +223,22 @@ export async function preparePreview(url: string): Promise<void> {
         // write delivered via PTY can be split by the OS into multiple read events.
         // If two read events hit processData() concurrently, the parser's
         // pendingData state can race and sequences get lost (base64 leak).
-        // Per-chunk writes keep each PTY read small enough to be processed atomically.
         writeSync(1, `\x1b7\x1b[${interiorRow};${interiorCol}H`)
         for (const chunk of rawChunks) {
           if (inTmux && protocol !== "symbols") {
             writeSync(1, Buffer.from(wrapTmuxDCS(chunk)))
-            // Busy-wait between DCS chunks — matches erssi's fflush(stdout) per-chunk pattern.
-            // Without this, tmux unwraps ALL chunks in one event loop iteration and
-            // flushes all unwrapped data as one giant write to the outer terminal.
-            // Subterm's async parser races on large blobs (writeInternal without await).
-            // 2ms gives tmux time to process+flush each chunk individually.
-            // NOTE: Bun.sleepSync causes malloc double-free — it blocks the main thread
-            // while I/O threads continue reading stdin, causing a race on buffer dealloc.
-            // Busy-wait with Bun.nanoseconds keeps main thread active, avoiding the race.
-            const waitUntil = Bun.nanoseconds() + 2_000_000
-            while (Bun.nanoseconds() < waitUntil) {}
+            // Async sleep between DCS chunks — matches erssi's fflush(stdout) per-chunk.
+            // Gives tmux time to process+flush each chunk individually before the next.
+            // Unlike Bun.sleepSync (malloc crash) or busy-wait (kqueue race), Bun.sleep
+            // yields to the event loop cleanly — no thread blocking, no I/O thread race.
+            await Bun.sleep(2)
+            // Bail if user dismissed image while we were writing
+            if (!useStore.getState().imagePreview) {
+              writeSync(1, "\x1b8")
+              writeSync(1, MOUSE_ENABLE)
+              resumeStdin()
+              return
+            }
           } else {
             writeSync(1, Buffer.from(chunk))
           }
@@ -245,6 +251,9 @@ export async function preparePreview(url: string): Promise<void> {
         // Always try to re-enable mouse tracking even on error
         try { writeSync(1, MOUSE_ENABLE) } catch {}
         dbg(`%Zf7768ewrite failed: ${e.message}%N`)
+      } finally {
+        // Always resume stdin — even on error or early return
+        resumeStdin()
       }
     }, 50)
 

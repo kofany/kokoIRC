@@ -112,9 +112,13 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const { writeSync } = require("node:fs")
+      const { pauseStdin, resumeStdin } = require("@/core/image-preview/stdin-guard")
       const inTmux = !!process.env.TMUX
 
-      // Disable mouse tracking during cleanup writes (same reason as render.ts)
+      // Pause stdin to prevent malloc double-free from kqueue stdin race
+      pauseStdin()
+
+      // Disable mouse tracking during cleanup writes
       writeSync(1, "\x1b[?1003l\x1b[?1006l\x1b[?1002l\x1b[?1000l")
 
       // Protocol-specific cleanup (like erssi's image_render_clear_graphics)
@@ -131,8 +135,6 @@ export const useStore = create<AppState>((set, get) => ({
 
       // Write blank spaces over the image area. This clears:
       // - iTerm2/Sixel/Symbols: inline image cells in the cell buffer
-      // - Kitty in tmux: any leaked base64 text from DCS passthrough issues
-      //   (Kitty delete only removes graphics placements, not leaked text)
       // Skip for kitty — graphics are on a separate layer, delete command removes them.
       // Blank spaces create background artifacts (default bg vs theme bg).
       const needsBlankClear = prev.protocol && prev.protocol !== "kitty"
@@ -152,13 +154,11 @@ export const useStore = create<AppState>((set, get) => ({
         writeSync(1, clear)
       }
 
-      // tmux: small delay to let tmux process the clear (like erssi's usleep(10000))
-      if (inTmux) {
-        Bun.sleepSync(10)
-      }
-
       // Re-enable mouse tracking
       writeSync(1, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h")
+
+      // Resume stdin reading
+      resumeStdin()
     } catch {}
 
     // Remove overlay from React tree, then force OpenTUI full repaint
