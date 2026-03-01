@@ -195,9 +195,9 @@ export async function preparePreview(url: string): Promise<void> {
 
     // 9. Write image directly to stdout, bypassing React/OpenTUI
     //    Use setTimeout to let the overlay box render first.
-    //    Async callback: yields to event loop between tmux DCS chunks via Bun.sleep(),
-    //    avoiding the busy-wait that caused malloc double-free (kqueue stdin race).
-    setTimeout(async () => {
+    //    MUST be synchronous — async yields (Bun.sleep) let OpenTUI render frames
+    //    between DCS chunks, corrupting tmux's virtual terminal state (ghostty+tmux).
+    setTimeout(() => {
       if (!useStore.getState().imagePreview) return
 
       const popupWidth = displayCols + 2
@@ -210,9 +210,11 @@ export async function preparePreview(url: string): Promise<void> {
       const interiorCol = left + 1
 
       try {
-        // Pause stdin to prevent Bun's kqueue I/O from reading stdin during writes.
-        // Without this, accumulated stdin data causes malloc double-free in Bun's
-        // internal buffer management when the event loop processes the burst.
+        // Pause stdin + flush kernel buffer to prevent malloc double-free.
+        // Bun's kqueue-based I/O reads stdin concurrently. During synchronous
+        // writes + busy-waits, accumulated stdin data bursts can trigger a
+        // double-free in Bun's internal buffer management. pauseStdin() stops
+        // kqueue from scheduling reads; tcflush discards any queued data.
         pauseStdin()
 
         // Disable mouse tracking at terminal level
@@ -227,18 +229,14 @@ export async function preparePreview(url: string): Promise<void> {
         for (const chunk of rawChunks) {
           if (inTmux && protocol !== "symbols") {
             writeSync(1, Buffer.from(wrapTmuxDCS(chunk)))
-            // Async sleep between DCS chunks — matches erssi's fflush(stdout) per-chunk.
-            // Gives tmux time to process+flush each chunk individually before the next.
-            // Unlike Bun.sleepSync (malloc crash) or busy-wait (kqueue race), Bun.sleep
-            // yields to the event loop cleanly — no thread blocking, no I/O thread race.
-            await Bun.sleep(2)
-            // Bail if user dismissed image while we were writing
-            if (!useStore.getState().imagePreview) {
-              writeSync(1, "\x1b8")
-              writeSync(1, MOUSE_ENABLE)
-              resumeStdin()
-              return
-            }
+            // Busy-wait 2ms between DCS chunks — matches erssi's fflush(stdout) pattern.
+            // Gives tmux time to process+flush each chunk before the next arrives.
+            // Safe with paused stdin: kqueue won't schedule reads, no data accumulates,
+            // so the busy-wait doesn't trigger the malloc double-free.
+            // MUST be synchronous (not async) — yielding to the event loop would let
+            // OpenTUI render frames between chunks, corrupting tmux state.
+            const waitUntil = Bun.nanoseconds() + 2_000_000
+            while (Bun.nanoseconds() < waitUntil) {}
           } else {
             writeSync(1, Buffer.from(chunk))
           }

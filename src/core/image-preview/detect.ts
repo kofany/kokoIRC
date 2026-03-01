@@ -64,27 +64,29 @@ export function detectProtocol(configOverride?: string): ImageProtocol {
   }
 
   // ─── env var detection (non-tmux, or tmux query returned unknown) ──
+  // Order matches erssi: check SPECIFIC identifiers first (TERM_PROGRAM, env vars),
+  // then generic TERM last. This prevents iTerm2 (TERM=xterm-256color) from
+  // being misdetected as sixel via the "xterm" match in matchTermName.
   const term = (process.env.TERM ?? "").toLowerCase()
   const termProgram = (process.env.TERM_PROGRAM ?? "").toLowerCase()
   const lcTerminal = (process.env.LC_TERMINAL ?? "").toLowerCase()
 
-  // Check TERM first (xterm-kitty, xterm-ghostty, etc.)
-  const termMatch = matchTermName(term)
-  if (termMatch) return termMatch
-
-  // TERM_PROGRAM / LC_TERMINAL (iTerm2 sets these outside tmux)
+  // TERM_PROGRAM / LC_TERMINAL — most specific identifier, check FIRST
   if (termProgram === "iterm.app" || termProgram === "iterm2" || lcTerminal === "iterm2") {
     return "iterm2"
   }
   if (termProgram === "wezterm") return "kitty"
   if (termProgram === "rio") return "kitty"
+  if (termProgram === "mintty") return "sixel"
 
   // Process-specific env vars
   if (process.env.KITTY_PID) return "kitty"
   if (process.env.GHOSTTY_RESOURCES_DIR) return "kitty"
-
-  // Windows Terminal
   if (process.env.WT_SESSION) return "sixel"
+
+  // Generic TERM value (xterm-kitty, xterm-ghostty, etc.) — LAST
+  const termMatch = matchTermName(term)
+  if (termMatch) return termMatch
 
   return "symbols"
 }
