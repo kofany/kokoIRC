@@ -13,6 +13,7 @@ export function cloneConfig(config: AppConfig): AppConfig {
       right: { ...config.sidepanel.right },
     },
     statusbar: { ...config.statusbar, items: [...config.statusbar.items], item_formats: { ...config.statusbar.item_formats } },
+    image_preview: { ...config.image_preview },
     servers: Object.fromEntries(
       Object.entries(config.servers).map(([id, srv]) => [id, { ...srv, channels: [...srv.channels] }])
     ),
@@ -34,6 +35,7 @@ export function mergeWithDefaults(partial: Record<string, any>): AppConfig {
       right: { ...DEFAULT_CONFIG.sidepanel.right, ...partial.sidepanel?.right },
     },
     statusbar: { ...DEFAULT_CONFIG.statusbar, ...partial.statusbar },
+    image_preview: { ...DEFAULT_CONFIG.image_preview, ...partial.image_preview },
     servers: partial.servers ?? {},
     aliases: partial.aliases ?? {},
     ignores: (partial.ignores as IgnoreEntry[] | undefined) ?? [],
@@ -131,6 +133,8 @@ export async function saveConfig(configPath: string, config: AppConfig): Promise
   for (const [id, server] of Object.entries(config.servers)) {
     tomlObj.servers[id] = cleanServerForTOML(server)
   }
+
+  tomlObj.image_preview = config.image_preview
 
   if (config.ignores.length > 0) {
     tomlObj.ignores = config.ignores.map((e) => {

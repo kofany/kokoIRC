@@ -1,8 +1,11 @@
 import { useStore } from "@/core/state/store"
 import { resolveAbstractions, parseFormatString, StyledText } from "@/core/theme"
 import { formatTimestamp } from "@/core/irc/formatting"
+import { classifyUrl } from "@/core/image-preview/fetch"
 import type { Message } from "@/types"
 import type { StyledSpan } from "@/types/theme"
+
+const URL_RE = /https?:\/\/[^\s<>"')\]]+/gi
 
 interface Props {
   message: Message
@@ -84,8 +87,22 @@ export function MessageLine({ message, isOwnNick }: Props) {
   const separator: StyledSpan = { text: " ", bold: false, italic: false, underline: false, dim: false }
   const allSpans = [...tsSpans, separator, ...msgSpans]
 
+  // Click any URL in the message to attempt image preview (erssi-style content-type sniffing)
+  const handleClick = () => {
+    const text = message.text
+    const urls = text.match(URL_RE)
+    if (!urls) return
+
+    for (const url of urls) {
+      if (classifyUrl(url)) {
+        useStore.getState().showImagePreview(url)
+        return
+      }
+    }
+  }
+
   return (
-    <box width="100%">
+    <box width="100%" onMouseDown={handleClick}>
       <StyledText spans={allSpans} />
     </box>
   )

@@ -1175,6 +1175,79 @@ export const commands: Record<string, CommandDef> = {
     usage: "/unignore <number|mask>",
   },
 
+  preview: {
+    handler(args) {
+      if (!args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /preview <url>%N`)
+        return
+      }
+      useStore.getState().showImagePreview(args[0])
+    },
+    description: "Preview an image URL in the terminal",
+    usage: "/preview <url>",
+  },
+
+  image: {
+    async handler(args) {
+      const sub = args[0]?.toLowerCase()
+      const s = useStore.getState()
+      const config = s.config?.image_preview
+
+      if (!sub) {
+        addLocalEvent(`%Z7aa2f7───── Image Preview ─────────────────────%N`)
+        addLocalEvent(`  %Z565f89Status:%N ${config?.enabled ? "%Z9ece6aenabled%N" : "%Zf7768edisabled%N"}`)
+        addLocalEvent(`  %Z565f89Protocol:%N %Zc0caf5${config?.protocol ?? "auto"}%N`)
+        addLocalEvent(`  %Z565f89Cache limit:%N %Zc0caf5${config?.cache_max_mb ?? 100}MB%N`)
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
+        addLocalEvent(`  %Z565f89Commands: stats, clear%N`)
+        addLocalEvent(`  %Z565f89Toggle: /set image_preview.enabled true|false%N`)
+        return
+      }
+
+      if (sub === "stats") {
+        const { readdir, stat } = await import("node:fs/promises")
+        const { IMAGE_CACHE_DIR } = await import("@/core/constants")
+        try {
+          const files = await readdir(IMAGE_CACHE_DIR)
+          let totalSize = 0
+          for (const file of files) {
+            const { join } = await import("node:path")
+            const s = await stat(join(IMAGE_CACHE_DIR, file))
+            totalSize += s.size
+          }
+          const sizeMb = (totalSize / 1024 / 1024).toFixed(1)
+          addLocalEvent(`%Z7aa2f7Image cache:%N %Zc0caf5${files.length}%N files, %Zc0caf5${sizeMb}%N MB`)
+        } catch {
+          addLocalEvent(`%Z565f89Cache empty or not initialized%N`)
+        }
+        return
+      }
+
+      if (sub === "clear") {
+        const { readdir, unlink } = await import("node:fs/promises")
+        const { IMAGE_CACHE_DIR } = await import("@/core/constants")
+        const { join } = await import("node:path")
+        try {
+          const files = await readdir(IMAGE_CACHE_DIR)
+          let count = 0
+          for (const file of files) {
+            await unlink(join(IMAGE_CACHE_DIR, file))
+            count++
+          }
+          addLocalEvent(`%Z9ece6aCleared ${count} cached images%N`)
+        } catch {
+          addLocalEvent(`%Z565f89Cache already empty%N`)
+        }
+        return
+      }
+
+      addLocalEvent(`%Zf7768eUnknown subcommand: /image ${sub}. Use: stats, clear%N`)
+      addLocalEvent(`%Z565f89Settings via /set image_preview.<field> — enabled, protocol, max_width, etc.%N`)
+    },
+    description: "Image cache management (settings via /set image_preview.*)",
+    usage: "/image [stats|clear]",
+  },
+
   disconnect: {
     handler(args, connId) {
       const target = args[0]?.toLowerCase()

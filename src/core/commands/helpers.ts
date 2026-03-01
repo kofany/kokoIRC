@@ -155,6 +155,7 @@ export function listAllSettings(config: AppConfig): void {
   showSection("sidepanel.left", "sidepanel.left", config.sidepanel.left)
   showSection("sidepanel.right", "sidepanel.right", config.sidepanel.right)
   showSection("statusbar", "statusbar", config.statusbar)
+  showSection("image_preview", "image_preview", config.image_preview)
 
   if (Object.keys(config.aliases).length > 0) {
     showSection("aliases", "aliases", config.aliases)

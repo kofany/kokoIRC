@@ -3,6 +3,16 @@ import type { Connection, Buffer, Message, NickEntry, ActivityLevel, ListEntry, 
 import type { AppConfig } from "@/types/config"
 import type { ThemeFile } from "@/types/theme"
 
+export interface ImagePreviewState {
+  url: string
+  status: "loading" | "ready" | "error"
+  error?: string
+  width: number
+  height: number
+  title?: string
+  protocol?: string  // needed for cleanup on dismiss
+}
+
 interface AppState {
   // Data
   connections: Map<string, Connection>
@@ -11,6 +21,12 @@ interface AppState {
   previousActiveBufferId: string | null
   config: AppConfig | null
   theme: ThemeFile | null
+
+  // Image preview
+  imagePreview: ImagePreviewState | null
+  showImagePreview: (url: string) => void
+  updateImagePreview: (updates: Partial<ImagePreviewState>) => void
+  hideImagePreview: () => void
 
   // Connection actions
   addConnection: (conn: Connection) => void
@@ -57,6 +73,66 @@ export const useStore = create<AppState>((set, get) => ({
   previousActiveBufferId: null,
   config: null,
   theme: null,
+
+  // Image preview
+  imagePreview: null,
+  showImagePreview: (url) => {
+    // Concurrency guard — ignore if already loading
+    const current = get().imagePreview
+    if (current?.status === "loading") return
+
+    set({
+      imagePreview: { url, status: "loading", width: 0, height: 0 },
+    })
+    // Kick off the async render pipeline
+    import("@/core/image-preview/render").then(({ preparePreview }) => {
+      preparePreview(url)
+    }).catch((err) => {
+      const s = get()
+      const buf = s.activeBufferId
+      if (buf) {
+        s.addMessage(buf, {
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          type: "event",
+          text: `%Zf7768e[img] import failed: ${err.message}%N`,
+          highlight: false,
+        })
+      }
+      set({ imagePreview: null })
+    })
+  },
+  updateImagePreview: (updates) => set((s) => {
+    if (!s.imagePreview) return s
+    return { imagePreview: { ...s.imagePreview, ...updates } }
+  }),
+  hideImagePreview: () => {
+    const prev = get().imagePreview
+    if (!prev) { set({ imagePreview: null }); return }
+
+    try {
+      const { writeSync } = require("node:fs")
+      const inTmux = !!process.env.TMUX
+
+      // Protocol-specific cleanup (like erssi's image_render_clear_graphics)
+      if (prev.protocol === "kitty") {
+        const deleteCmd = "\x1b_Ga=d\x1b\\"
+        if (inTmux) {
+          const escaped = deleteCmd.replace(/\x1b/g, "\x1b\x1b")
+          writeSync(1, `\x1bPtmux;${escaped}\x1b\\`)
+        } else {
+          writeSync(1, deleteCmd)
+        }
+      }
+    } catch {}
+
+    // Remove overlay from React tree, then force OpenTUI full repaint
+    // via SIGWINCH (fake resize signal) — erssi equivalent of mainwindows_redraw()
+    set({ imagePreview: null })
+    setTimeout(() => {
+      process.kill(process.pid, "SIGWINCH")
+    }, 16)
+  },
 
   addConnection: (conn) => set((s) => {
     const connections = new Map(s.connections)

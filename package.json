@@ -22,6 +22,7 @@
   "devDependencies": {
     "@types/bun": "^1.3.9",
     "@types/react": "^19.2.14",
+    "@types/sharp": "^0.32.0",
     "typescript": "^5.9.3"
   },
   "imports": {
@@ -32,6 +33,8 @@
     "@opentui/react": "^0.1.83",
     "kofany-irc-framework": "^4.14.1",
     "react": "^19.2.4",
+    "sharp": "^0.34.5",
+    "sixel": "^0.16.0",
     "smol-toml": "^1.6.0",
     "zustand": "^5.0.11"
   }
