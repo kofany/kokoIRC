@@ -4,7 +4,12 @@ import { useStore } from "@/core/state/store"
 import { detectProtocol, isInsideTmux } from "./detect"
 import { isCached, writeCache } from "./cache"
 import { classifyUrl, fetchImage } from "./fetch"
-import { encodeKittyChunks, encodeIterm2, encodeSixel, encodeSymbols, wrapTmuxDCS } from "./encode"
+import { encodeKittyRGBA, encodeKittyPNG, encodeIterm2, encodeSixel, encodeSymbols, wrapTmuxDCS, type KittyFormat } from "./encode"
+
+// Mouse tracking escape sequences — disable during image write to prevent
+// accumulated stdin mouse events from crashing Bun's event loop (malloc double-free).
+const MOUSE_DISABLE = "\x1b[?1003l\x1b[?1006l\x1b[?1002l\x1b[?1000l"
+const MOUSE_ENABLE  = "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h"
 
 /** Log debug info to the active buffer */
 function dbg(msg: string) {
@@ -71,14 +76,16 @@ export async function preparePreview(url: string): Promise<void> {
     // 5. Detect protocol
     const protocol = detectProtocol(config.protocol)
     const inTmux = isInsideTmux()
-    dbg(`protocol: ${protocol}${inTmux ? " (tmux)" : ""} [config=${config.protocol}]`)
+    const kittyFmt = (config.kitty_format ?? "rgba") as KittyFormat
+    dbg(`protocol: ${protocol}${inTmux ? " (tmux)" : ""} [config=${config.protocol}, kitty_fmt=${kittyFmt}]`)
 
-    // 6. Calculate display dimensions
+    // 6. Calculate display dimensions — match erssi's approach:
+    //    max = 75% of terminal, aspect ratio with cellAspect=2, cell geometry 8×16
     const termCols = process.stdout.columns || 80
     const termRows = process.stdout.rows || 24
 
-    const maxCols = config.max_width || Math.floor(termCols * 0.6)
-    const maxRows = config.max_height || Math.floor(termRows * 0.6)
+    const maxCols = config.max_width || Math.floor(termCols * 0.75)
+    const maxRows = config.max_height || Math.floor(termRows * 0.75)
 
     const innerCols = maxCols - 2
     const innerRows = maxRows - 2
@@ -101,10 +108,10 @@ export async function preparePreview(url: string): Promise<void> {
     let pixelHeight = protocol === "symbols" ? displayRows * 2 : displayRows * 16
 
     // Byte limit like erssi (IMAGE_PREVIEW_MAX_BYTES = 2MB).
-    // Raw RGBA = W*H*4, base64 overhead = *1.37, DCS overhead = *1.05
-    // If estimated encoded size > 2MB, scale down proportionally.
-    if (protocol !== "symbols") {
+    // Only applies to raw RGBA (f=32) — PNG is already compressed and much smaller.
+    if (protocol !== "symbols" && !(protocol === "kitty" && kittyFmt === "png")) {
       const MAX_BYTES = 2_000_000
+      // Raw RGBA = W*H*4, base64 overhead = *1.37, DCS overhead = *1.05
       const estimatedBytes = pixelWidth * pixelHeight * 4 * 1.4
       if (estimatedBytes > MAX_BYTES) {
         const scale = Math.sqrt(MAX_BYTES / estimatedBytes)
@@ -123,15 +130,25 @@ export async function preparePreview(url: string): Promise<void> {
     let rawChunks: string[]
 
     if (protocol === "kitty") {
-      // Raw RGBA (f=32) like chafa — more compatible than PNG (f=100)
-      const { data, info } = await sharp(imagePath)
-        .resize(pixelWidth, pixelHeight, { fit: "inside" })
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true })
-      const rgbaCopy = Buffer.from(data)
-      dbg(`kitty: RGBA ${info.width}x${info.height}, ${rgbaCopy.length} bytes`)
-      rawChunks = encodeKittyChunks(rgbaCopy, info.width, info.height, displayCols, displayRows)
+      if (kittyFmt === "png") {
+        // PNG (f=100) — terminal decodes natively, more robust at chunk boundaries
+        const pngBuf = await sharp(imagePath)
+          .resize(pixelWidth, pixelHeight, { fit: "inside" })
+          .png()
+          .toBuffer()
+        dbg(`kitty: PNG ${pngBuf.length} bytes, fmt=png`)
+        rawChunks = encodeKittyPNG(pngBuf, displayCols, displayRows)
+      } else {
+        // Raw RGBA (f=32) — direct pixel data, matches erssi/chafa output
+        const { data, info } = await sharp(imagePath)
+          .resize(pixelWidth, pixelHeight, { fit: "inside" })
+          .ensureAlpha()
+          .raw()
+          .toBuffer({ resolveWithObject: true })
+        const rgbaCopy = Buffer.from(data)
+        dbg(`kitty: RGBA ${info.width}x${info.height}, ${rgbaCopy.length} bytes, fmt=rgba`)
+        rawChunks = encodeKittyRGBA(rgbaCopy, info.width, info.height, displayCols, displayRows)
+      }
     } else if (protocol === "iterm2") {
       const resized = await sharp(imagePath)
         .resize(pixelWidth, pixelHeight, { fit: "inside" })
@@ -190,32 +207,33 @@ export async function preparePreview(url: string): Promise<void> {
       const interiorCol = left + 1
 
       try {
-        if (inTmux && protocol !== "symbols") {
-          // tmux: per-chunk DCS passthrough matching erssi's fflush-per-chunk.
-          // Pre-build ALL Buffers first, then write them sequentially.
-          // Buffer.concat avoids both string O(n²) and per-write malloc issues.
-          const pieces: Buffer[] = [
-            Buffer.from(`\x1b7\x1b[${interiorRow};${interiorCol}H`),
-          ]
-          for (const chunk of rawChunks) {
-            pieces.push(Buffer.from(wrapTmuxDCS(chunk)))
-          }
-          pieces.push(Buffer.from("\x1b8"))
+        // Disable mouse tracking BEFORE writing image data.
+        // While writeSync blocks Bun's event loop, the terminal still sends mouse
+        // events through stdin. These accumulate in kernel buffers and when the event
+        // loop resumes, Bun's internal buffer handling can trigger a malloc double-free.
+        writeSync(1, MOUSE_DISABLE)
 
-          // Write as single Buffer (no string encoding at write time)
-          writeSync(1, Buffer.concat(pieces))
-        } else {
-          // Direct terminal: single write, no DCS framing needed
-          const pieces: Buffer[] = [
-            Buffer.from(`\x1b7\x1b[${interiorRow};${interiorCol}H`),
-          ]
-          for (const chunk of rawChunks) {
-            pieces.push(Buffer.from(chunk))
+        // Write EACH chunk as a separate writeSync call.
+        // Subterm's terminal.write() is async-without-await, so a single giant
+        // write delivered via PTY can be split by the OS into multiple read events.
+        // If two read events hit processData() concurrently, the parser's
+        // pendingData state can race and sequences get lost (base64 leak).
+        // Per-chunk writes keep each PTY read small enough to be processed atomically.
+        writeSync(1, `\x1b7\x1b[${interiorRow};${interiorCol}H`)
+        for (const chunk of rawChunks) {
+          if (inTmux && protocol !== "symbols") {
+            writeSync(1, Buffer.from(wrapTmuxDCS(chunk)))
+          } else {
+            writeSync(1, Buffer.from(chunk))
           }
-          pieces.push(Buffer.from("\x1b8"))
-          writeSync(1, Buffer.concat(pieces))
         }
+        writeSync(1, "\x1b8")
+
+        // Re-enable mouse tracking
+        writeSync(1, MOUSE_ENABLE)
       } catch (e: any) {
+        // Always try to re-enable mouse tracking even on error
+        try { writeSync(1, MOUSE_ENABLE) } catch {}
         dbg(`%Zf7768ewrite failed: ${e.message}%N`)
       }
     }, 50)

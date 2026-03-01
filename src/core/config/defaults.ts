@@ -49,6 +49,7 @@ export const DEFAULT_CONFIG: AppConfig = {
     fetch_timeout: 30,
     max_file_size: 10485760,
     protocol: "auto",
+    kitty_format: "rgba",
   },
   servers: {
     ircnet: {

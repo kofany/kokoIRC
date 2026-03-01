@@ -57,6 +57,7 @@ export interface ImagePreviewConfig {
   fetch_timeout: number   // seconds (default: 30)
   max_file_size: number   // max download bytes (default: 10MB)
   protocol: string        // "auto" | "kitty" | "iterm2" | "sixel" | "symbols"
+  kitty_format: string    // "rgba" | "png" — kitty protocol pixel format (default: "rgba")
 }
 
 export interface AppConfig {

@@ -114,16 +114,45 @@ export const useStore = create<AppState>((set, get) => ({
       const { writeSync } = require("node:fs")
       const inTmux = !!process.env.TMUX
 
+      // Disable mouse tracking during cleanup writes (same reason as render.ts)
+      writeSync(1, "\x1b[?1003l\x1b[?1006l\x1b[?1002l\x1b[?1000l")
+
       // Protocol-specific cleanup (like erssi's image_render_clear_graphics)
       if (prev.protocol === "kitty") {
-        const deleteCmd = "\x1b_Ga=d\x1b\\"
+        // q=2: suppress terminal response to prevent PTY echo / malloc issues
+        const deleteCmd = "\x1b_Ga=d,q=2\x1b\\"
         if (inTmux) {
           const escaped = deleteCmd.replace(/\x1b/g, "\x1b\x1b")
           writeSync(1, `\x1bPtmux;${escaped}\x1b\\`)
         } else {
           writeSync(1, deleteCmd)
         }
+      } else if (prev.protocol && prev.protocol !== "kitty") {
+        // iTerm2/Sixel/Symbols: images are part of the cell buffer, not a
+        // separate graphics layer. Write blank spaces over the image area
+        // to force the terminal to clear inline image cells.
+        const termCols = process.stdout.columns || 80
+        const termRows = process.stdout.rows || 24
+        const w = prev.width || 0
+        const h = prev.height || 0
+        const left = Math.max(0, Math.floor((termCols - w) / 2))
+        const top = Math.max(0, Math.floor((termRows - h) / 2))
+        const blankLine = " ".repeat(w)
+        let clear = "\x1b7" // save cursor
+        for (let row = 0; row < h; row++) {
+          clear += `\x1b[${top + row + 1};${left + 1}H${blankLine}`
+        }
+        clear += "\x1b8" // restore cursor
+        writeSync(1, clear)
       }
+
+      // tmux: small delay to let tmux process the clear (like erssi's usleep(10000))
+      if (inTmux) {
+        Bun.sleepSync(10)
+      }
+
+      // Re-enable mouse tracking
+      writeSync(1, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h")
     } catch {}
 
     // Remove overlay from React tree, then force OpenTUI full repaint
