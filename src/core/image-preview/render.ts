@@ -223,6 +223,16 @@ export async function preparePreview(url: string): Promise<void> {
         for (const chunk of rawChunks) {
           if (inTmux && protocol !== "symbols") {
             writeSync(1, Buffer.from(wrapTmuxDCS(chunk)))
+            // Busy-wait between DCS chunks — matches erssi's fflush(stdout) per-chunk pattern.
+            // Without this, tmux unwraps ALL chunks in one event loop iteration and
+            // flushes all unwrapped data as one giant write to the outer terminal.
+            // Subterm's async parser races on large blobs (writeInternal without await).
+            // 2ms gives tmux time to process+flush each chunk individually.
+            // NOTE: Bun.sleepSync causes malloc double-free — it blocks the main thread
+            // while I/O threads continue reading stdin, causing a race on buffer dealloc.
+            // Busy-wait with Bun.nanoseconds keeps main thread active, avoiding the race.
+            const waitUntil = Bun.nanoseconds() + 2_000_000
+            while (Bun.nanoseconds() < waitUntil) {}
           } else {
             writeSync(1, Buffer.from(chunk))
           }

@@ -1,114 +1,127 @@
 ---
-description: Use Bun instead of Node.js, npm, pnpm, or vite.
-globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json"
-alwaysApply: false
+description: KokoIRC terminal client — Bun, OpenTUI React, kofany-irc-framework
+globs: "*.ts, *.tsx, *.html, *.css, *.js, *.jsx, package.json, *.toml"
+alwaysApply: true
 ---
 
-Default to using Bun instead of Node.js.
+# KokoIRC — Terminal IRC Client
 
-- Use `bun <file>` instead of `node <file>` or `ts-node <file>`
-- Use `bun test` instead of `jest` or `vitest`
-- Use `bun build <file.html|file.ts|file.css>` instead of `webpack` or `esbuild`
-- Use `bun install` instead of `npm install` or `yarn install` or `pnpm install`
-- Use `bun run <script>` instead of `npm run <script>` or `yarn run <script>` or `pnpm run <script>`
-- Use `bunx <package> <command>` instead of `npx <package> <command>`
-- Bun automatically loads .env, so don't use dotenv.
+Terminal IRC client built with **OpenTUI** (React reconciler for TUI) and **Bun**.
+Binary name: `kokoirc` / `openirc` (compiled). Version 0.1.2.
 
-## APIs
+## Available Skills
 
-- `Bun.serve()` supports WebSockets, HTTPS, and routes. Don't use `express`.
-- `bun:sqlite` for SQLite. Don't use `better-sqlite3`.
-- `Bun.redis` for Redis. Don't use `ioredis`.
-- `Bun.sql` for Postgres. Don't use `pg` or `postgres.js`.
-- `WebSocket` is built-in. Don't use `ws`.
-- Prefer `Bun.file` over `node:fs`'s readFile/writeFile
-- Bun.$`ls` instead of execa.
+- **`opentui`** — OpenTUI core, React reconciler, and Solid reconciler. Use for any TUI component, layout, keyboard, or rendering questions.
+- **`kofany-irc-framework`** — Our own fork of irc-framework (`kofany-irc-framework` on npm). Use for IRC protocol, events, client API, middleware.
+
+Always invoke these skills when working on UI components or IRC logic.
+
+## Architecture
+
+```
+src/
+├── index.tsx              # Entry point — OpenTUI renderer + React mount
+├── app/App.tsx            # Root React component, orchestrates connections
+├── core/                  # UI-agnostic logic
+│   ├── commands/          # Command system (parser, registry, execution, docs, help-formatter)
+│   ├── config/            # TOML config loader + defaults (~/.kokoirc/)
+│   ├── image-preview/     # Image preview pipeline (fetch, encode, render, cache, detect)
+│   ├── irc/               # IRC client wrapper (client.ts) + event binding (events.ts)
+│   ├── state/             # Zustand store + selectors (UI-agnostic state)
+│   ├── theme/             # TOML theme loader + parser
+│   └── constants.ts       # Directory paths, config locations
+├── ui/                    # React components (OpenTUI)
+│   ├── chat/              # ChatView.tsx, MessageLine.tsx
+│   ├── layout/            # AppLayout.tsx (main layout), TopicBar.tsx
+│   ├── sidebar/           # BufferList.tsx, NickList.tsx
+│   ├── input/             # CommandInput.tsx
+│   ├── statusbar/         # StatusLine.tsx
+│   ├── overlay/           # ImagePreview.tsx
+│   ├── splash/            # SplashScreen.tsx
+│   ├── hooks/             # useStatusbarColors.ts
+│   └── ErrorBoundary.tsx
+├── types/                 # TypeScript types
+│   ├── index.ts           # Connection, Buffer, Message, NickEntry
+│   ├── config.ts          # AppConfig, ServerConfig, ImagePreviewConfig
+│   ├── theme.ts           # ThemeFile, ThemeColors
+│   └── irc-framework.d.ts # Type declarations for kofany-irc-framework
+config/                    # Default TOML config
+themes/                    # Default .theme TOML files
+docs/commands/             # Command help markdown files (30+)
+tests/                     # bun:test test files
+```
+
+### Key Design Decisions
+
+- **Zustand store** (`src/core/state/store.ts`) is UI-agnostic — designed for potential future web frontend
+- **IRC events** processed through `src/core/irc/events.ts` (30+ events) → Zustand store updates → React re-renders
+- **TOML config** at `~/.kokoirc/config.toml` — general, display, servers, image preview, ignore rules
+- **Themes** are TOML files with color palettes + format templates, support IRC `%Zrrggbb` color codes
+- **Commands** follow irssi-like patterns: `/join`, `/msg`, `/whois`, `/set`, `/image`, `/preview`, etc.
+- **Path alias**: `@/*` maps to `src/*`
+
+## Dependencies
+
+| Package | Purpose |
+|---------|---------|
+| `@opentui/core` + `@opentui/react` | Terminal UI framework with React reconciler |
+| `kofany-irc-framework` | **Our fork** of irc-framework — IRC protocol client |
+| `react` 19 | UI component library (rendered to terminal via OpenTUI) |
+| `zustand` | State management (connections, buffers, messages, UI state) |
+| `sharp` | Image processing for terminal preview encoding |
+| `sixel` | Sixel graphics format encoder |
+| `smol-toml` | TOML parser for config and themes |
+
+## Image Preview (WIP — not working as of 2025-03-01 17:50 CET)
+
+The image preview system in `src/core/image-preview/` supports multiple terminal protocols:
+- Kitty Graphics Protocol (RGBA chunks)
+- iTerm2 Inline Images
+- Sixel format
+- ASCII art symbols fallback
+- tmux DCS passthrough wrapping
+
+Pipeline: URL detection → fetch (with imgur/imgbb scraping) → sharp resize → encode → LRU disk cache (100MB, 7-day TTL) → render in overlay.
+
+**Status**: Implementation exists but is not functioning correctly. The `/Users/k/dev/subterm` and `/Users/k/dev/erssi` repos are available as references for fixing.
+
+## Running & Building
+
+```bash
+bun run src/index.tsx          # Run directly
+bun --watch run src/index.tsx  # Watch mode (dev)
+bun run dev                    # Same as watch mode
+bun test                       # Run tests
+bun run build                  # Compile → ./openirc (68MB binary)
+```
+
+## Bun Defaults
+
+Use Bun instead of Node.js for everything:
+
+- `bun <file>` not `node <file>` or `ts-node <file>`
+- `bun test` not `jest` or `vitest`
+- `bun install` not `npm/yarn/pnpm install`
+- `bun run <script>` not `npm/yarn/pnpm run`
+- `bunx <pkg>` not `npx <pkg>`
+- Bun loads `.env` automatically — no dotenv needed
+
+### Bun APIs to prefer
+
+- `Bun.file()` over `node:fs` readFile/writeFile
+- `Bun.$\`cmd\`` over execa
+- `bun:sqlite` over better-sqlite3
+- Built-in `WebSocket` over ws
 
 ## Testing
 
-Use `bun test` to run tests.
+Tests in `tests/` use `bun:test`:
 
-```ts#index.test.ts
+```ts
 import { test, expect } from "bun:test";
-
-test("hello world", () => {
-  expect(1).toBe(1);
-});
 ```
 
-## Frontend
-
-Use HTML imports with `Bun.serve()`. Don't use `vite`. HTML imports fully support React, CSS, Tailwind.
-
-Server:
-
-```ts#index.ts
-import index from "./index.html"
-
-Bun.serve({
-  routes: {
-    "/": index,
-    "/api/users/:id": {
-      GET: (req) => {
-        return new Response(JSON.stringify({ id: req.params.id }));
-      },
-    },
-  },
-  // optional websocket support
-  websocket: {
-    open: (ws) => {
-      ws.send("Hello, world!");
-    },
-    message: (ws, message) => {
-      ws.send(message);
-    },
-    close: (ws) => {
-      // handle close
-    }
-  },
-  development: {
-    hmr: true,
-    console: true,
-  }
-})
-```
-
-HTML files can import .tsx, .jsx or .js files directly and Bun's bundler will transpile & bundle automatically. `<link>` tags can point to stylesheets and Bun's CSS bundler will bundle.
-
-```html#index.html
-<html>
-  <body>
-    <h1>Hello, world!</h1>
-    <script type="module" src="./frontend.tsx"></script>
-  </body>
-</html>
-```
-
-With the following `frontend.tsx`:
-
-```tsx#frontend.tsx
-import React from "react";
-import { createRoot } from "react-dom/client";
-
-// import .css files directly and it works
-import './index.css';
-
-const root = createRoot(document.body);
-
-export default function Frontend() {
-  return <h1>Hello, world!</h1>;
-}
-
-root.render(<Frontend />);
-```
-
-Then, run index.ts
-
-```sh
-bun --hot ./index.ts
-```
-
-For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
+Current test coverage: command parser, config loader, theme parser/loader, buffer sorting.
 
 ## English Corrections
 

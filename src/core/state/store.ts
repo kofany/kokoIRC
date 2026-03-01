@@ -127,10 +127,16 @@ export const useStore = create<AppState>((set, get) => ({
         } else {
           writeSync(1, deleteCmd)
         }
-      } else if (prev.protocol && prev.protocol !== "kitty") {
-        // iTerm2/Sixel/Symbols: images are part of the cell buffer, not a
-        // separate graphics layer. Write blank spaces over the image area
-        // to force the terminal to clear inline image cells.
+      }
+
+      // Write blank spaces over the image area. This clears:
+      // - iTerm2/Sixel/Symbols: inline image cells in the cell buffer
+      // - Kitty in tmux: any leaked base64 text from DCS passthrough issues
+      //   (Kitty delete only removes graphics placements, not leaked text)
+      // Skip for kitty — graphics are on a separate layer, delete command removes them.
+      // Blank spaces create background artifacts (default bg vs theme bg).
+      const needsBlankClear = prev.protocol && prev.protocol !== "kitty"
+      if (needsBlankClear) {
         const termCols = process.stdout.columns || 80
         const termRows = process.stdout.rows || 24
         const w = prev.width || 0
