@@ -1,4 +1,4 @@
-import type { ModeEvent } from "irc-framework"
+import type { ModeEvent } from "kofany-irc-framework"
 import type { Buffer } from "@/types"
 
 /**

@@ -1,5 +1,5 @@
-import { Client } from "irc-framework"
-import type { ConnectOptions } from "irc-framework"
+import { Client } from "kofany-irc-framework"
+import type { ConnectOptions } from "kofany-irc-framework"
 import type { ServerConfig } from "@/types/config"
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
@@ -13,6 +13,13 @@ export function connectServer(id: string, config: ServerConfig): Client {
   // Disconnect existing connection with the same id if any
   if (clients.has(id)) {
     disconnectServer(id, "Reconnecting")
+  }
+
+  // Remove the placeholder default buffer when first real connection starts
+  const store0 = useStore.getState()
+  const defaultBuf = makeBufferId("_default", "Status")
+  if (store0.buffers.has(defaultBuf)) {
+    store0.removeBuffer(defaultBuf)
   }
 
   const client = new Client()
@@ -48,6 +55,7 @@ export function connectServer(id: string, config: ServerConfig): Client {
       unreadCount: 0,
       lastRead: new Date(),
       users: new Map(),
+      listModes: new Map(),
     })
   }
 

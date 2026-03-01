@@ -19,7 +19,85 @@ import {
 } from "./helpers"
 import { showCommandList, showCommandHelp, showSubcommandHelp } from "./help-formatter"
 
+// ─── List mode command factory ────────────────────────────────
+
+function makeListModeCommands(opts: {
+  addCmd: string
+  removeCmd: string
+  modeChar: string
+  listLabel: string
+}): { add: CommandDef; remove: CommandDef } {
+  const { addCmd, removeCmd, modeChar, listLabel } = opts
+
+  const add: CommandDef = {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client) return
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+
+      if (args.length === 0) {
+        // No args → request list from server
+        client.raw(`MODE ${channel} +${modeChar}`)
+        return
+      }
+      // With args → set mode
+      client.raw(`MODE ${channel} +${modeChar} ${args.join(" ")}`)
+    },
+    description: `Add to ${listLabel.toLowerCase()} (no args: show list)`,
+    usage: `/${addCmd} [mask]`,
+  }
+
+  const remove: CommandDef = {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client) return
+      const channel = getActiveChannel()
+      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
+
+      if (args.length === 0) {
+        addLocalEvent(`%Zf7768eUsage: /${removeCmd} <number|mask> [number2 ...]%N`)
+        return
+      }
+
+      const s = useStore.getState()
+      const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
+      const entries = buf?.listModes.get(modeChar) ?? []
+
+      // Collect masks to remove
+      const masks: string[] = []
+      for (const arg of args) {
+        const num = parseInt(arg, 10)
+        if (!isNaN(num) && arg === String(num)) {
+          // Numeric reference (1-based)
+          if (num < 1 || num > entries.length) {
+            addLocalEvent(`%Zf7768e${listLabel} #${num} out of range (1-${entries.length})%N`)
+            return
+          }
+          masks.push(entries[num - 1].mask)
+        } else {
+          // Treat as mask/wildcard
+          masks.push(arg)
+        }
+      }
+
+      for (const mask of masks) {
+        client.raw(`MODE ${channel} -${modeChar} ${mask}`)
+      }
+    },
+    description: `Remove from ${listLabel.toLowerCase()}`,
+    usage: `/${removeCmd} <number|mask> [number2 ...]`,
+  }
+
+  return { add, remove }
+}
+
 // ─── Command Registry ────────────────────────────────────────
+
+const banCmds = makeListModeCommands({ addCmd: "ban", removeCmd: "unban", modeChar: "b", listLabel: "Ban list" })
+const exceptCmds = makeListModeCommands({ addCmd: "except", removeCmd: "unexcept", modeChar: "e", listLabel: "Exception list" })
+const invexCmds = makeListModeCommands({ addCmd: "invex", removeCmd: "uninvex", modeChar: "I", listLabel: "Invite exception list" })
+const reopCmds = makeListModeCommands({ addCmd: "reop", removeCmd: "unreop", modeChar: "R", listLabel: "Reop list" })
 
 export const commands: Record<string, CommandDef> = {
   help: {
@@ -99,6 +177,7 @@ export const commands: Record<string, CommandDef> = {
           unreadCount: 0,
           lastRead: new Date(),
           users: new Map(),
+          listModes: new Map(),
         })
       }
 
@@ -750,39 +829,14 @@ export const commands: Record<string, CommandDef> = {
     aliases: ["k"],
   },
 
-  ban: {
-    handler(args, connId) {
-      const client = getClient(connId)
-      if (!client || !args[0]) {
-        addLocalEvent(`%Zf7768eUsage: /ban <nick|mask>%N`)
-        return
-      }
-      const channel = getActiveChannel()
-      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
-      // If it looks like a hostmask, use directly; otherwise wrap as *!*@<nick>
-      const mask = args[0].includes("!") || args[0].includes("@") ? args[0] : `${args[0]}!*@*`
-      client.raw(`MODE ${channel} +b ${mask}`)
-    },
-    description: "Ban a user or hostmask",
-    usage: "/ban <nick|mask>",
-    aliases: ["b"],
-  },
-
-  unban: {
-    handler(args, connId) {
-      const client = getClient(connId)
-      if (!client || !args[0]) {
-        addLocalEvent(`%Zf7768eUsage: /unban <nick|mask>%N`)
-        return
-      }
-      const channel = getActiveChannel()
-      if (!channel) { addLocalEvent(`%Zf7768eNo active channel%N`); return }
-      const mask = args[0].includes("!") || args[0].includes("@") ? args[0] : `${args[0]}!*@*`
-      client.raw(`MODE ${channel} -b ${mask}`)
-    },
-    description: "Remove a ban",
-    usage: "/unban <nick|mask>",
-  },
+  ban: { ...banCmds.add, aliases: ["b"] },
+  unban: banCmds.remove,
+  except: exceptCmds.add,
+  unexcept: exceptCmds.remove,
+  invex: invexCmds.add,
+  uninvex: invexCmds.remove,
+  reop: reopCmds.add,
+  unreop: reopCmds.remove,
 
   kb: {
     handler(args, connId) {

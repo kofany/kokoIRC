@@ -13,10 +13,12 @@ export function useSortedBuffers(): Array<Buffer & { connectionLabel: string }> 
   const buffersMap = useStore((s) => s.buffers)
   const connectionsMap = useStore((s) => s.connections)
   return useMemo(() => {
-    const list = Array.from(buffersMap.values()).map((buf) => ({
-      ...buf,
-      connectionLabel: connectionsMap.get(buf.connectionId)?.label ?? buf.connectionId,
-    }))
+    const list = Array.from(buffersMap.values())
+      .filter((buf) => buf.connectionId !== "_default")
+      .map((buf) => ({
+        ...buf,
+        connectionLabel: connectionsMap.get(buf.connectionId)?.label ?? buf.connectionId,
+      }))
     return sortBuffers(list)
   }, [buffersMap, connectionsMap])
 }

@@ -1,7 +1,7 @@
 import { useStore } from "@/core/state/store"
 import { makeBufferId } from "@/types"
 import type { Message } from "@/types"
-import type { Client } from "irc-framework"
+import type { Client } from "kofany-irc-framework"
 
 // ─── Constants (proven thresholds from erssi) ────────────────
 

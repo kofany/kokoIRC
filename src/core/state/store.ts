@@ -1,5 +1,5 @@
 import { create } from "zustand"
-import type { Connection, Buffer, Message, NickEntry, ActivityLevel } from "@/types"
+import type { Connection, Buffer, Message, NickEntry, ActivityLevel, ListEntry, ListModeKey } from "@/types"
 import type { AppConfig } from "@/types/config"
 import type { ThemeFile } from "@/types/theme"
 
@@ -34,6 +34,11 @@ interface AppState {
   // Buffer topic & modes
   updateBufferTopic: (bufferId: string, topic: string, setBy?: string) => void
   updateBufferModes: (bufferId: string, modes: string, modeParams?: Record<string, string>) => void
+
+  // List modes (bans, exceptions, invex, reop)
+  setListEntries: (bufferId: string, modeChar: ListModeKey, entries: ListEntry[]) => void
+  addListEntry: (bufferId: string, modeChar: ListModeKey, entry: ListEntry) => void
+  removeListEntry: (bufferId: string, modeChar: ListModeKey, mask: string) => void
 
   // Config/Theme
   setConfig: (config: AppConfig) => void
@@ -166,6 +171,41 @@ export const useStore = create<AppState>((set, get) => ({
     const buf = buffers.get(bufferId)
     if (!buf) return s
     buffers.set(bufferId, { ...buf, modes, modeParams: modeParams ?? buf.modeParams })
+    return { buffers }
+  }),
+
+  setListEntries: (bufferId, modeChar, entries) => set((s) => {
+    const buffers = new Map(s.buffers)
+    const buf = buffers.get(bufferId)
+    if (!buf) return s
+    const listModes = new Map(buf.listModes)
+    listModes.set(modeChar, entries)
+    buffers.set(bufferId, { ...buf, listModes })
+    return { buffers }
+  }),
+
+  addListEntry: (bufferId, modeChar, entry) => set((s) => {
+    const buffers = new Map(s.buffers)
+    const buf = buffers.get(bufferId)
+    if (!buf) return s
+    const listModes = new Map(buf.listModes)
+    const existing = listModes.get(modeChar) ?? []
+    // Deduplicate by mask
+    if (existing.some((e) => e.mask === entry.mask)) return s
+    listModes.set(modeChar, [...existing, entry])
+    buffers.set(bufferId, { ...buf, listModes })
+    return { buffers }
+  }),
+
+  removeListEntry: (bufferId, modeChar, mask) => set((s) => {
+    const buffers = new Map(s.buffers)
+    const buf = buffers.get(bufferId)
+    if (!buf) return s
+    const listModes = new Map(buf.listModes)
+    const existing = listModes.get(modeChar)
+    if (!existing) return s
+    listModes.set(modeChar, existing.filter((e) => e.mask !== mask))
+    buffers.set(bufferId, { ...buf, listModes })
     return { buffers }
   }),
 

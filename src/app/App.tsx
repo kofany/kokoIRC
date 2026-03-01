@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react"
+import { useState, useEffect, useCallback, useRef } from "react"
 import { useRenderer, useKeyboard } from "@opentui/react"
 import { useStore } from "@/core/state/store"
 import { loadConfig } from "@/core/config/loader"
@@ -6,7 +6,8 @@ import { loadTheme } from "@/core/theme/loader"
 import { connectAllAutoconnect } from "@/core/irc"
 import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
 import { loadAllDocs } from "@/core/commands"
-import { BufferType } from "@/types"
+import { initHomeDir } from "@/core/init"
+import { BufferType, ActivityLevel, makeBufferId, getSortGroup } from "@/types"
 import { SplashScreen } from "@/ui/splash/SplashScreen"
 import { AppLayout } from "@/ui/layout/AppLayout"
 import { TopicBar } from "@/ui/layout/TopicBar"
@@ -23,9 +24,86 @@ export function App() {
   const config = useStore((s) => s.config)
   const [showSplash, setShowSplash] = useState(true)
 
+  // Escape-prefix timestamp for irssi-style Esc+N window switching.
+  // OpenTUI's stdin buffer uses a 5ms timeout — too short for manual Esc then N.
+  // We track when Escape was pressed and check on the next keypress.
+  const escPressedAt = useRef(0)
+
   useKeyboard((key) => {
     if (key.name === "q" && key.ctrl) {
       renderer.destroy()
+      return
+    }
+
+    // Track standalone Escape keypresses for Esc+N prefix
+    if (key.name === "escape" && !key.ctrl && !key.shift) {
+      escPressedAt.current = Date.now()
+      return
+    }
+
+    // Check if this keypress is an Esc+key combo:
+    // Either key.meta is set (terminal sent Alt+N natively, e.g. iTerm2 with Option-as-Meta)
+    // or Escape was pressed within the last 500ms (manual Esc then N)
+    const isEscCombo = key.meta || (Date.now() - escPressedAt.current < 500)
+
+    if (isEscCombo) {
+      // Reset the escape timestamp so it doesn't trigger again
+      escPressedAt.current = 0
+
+      const s = useStore.getState()
+
+      // Build sorted buffer list (same order as sidebar)
+      const getSortedIds = () => {
+        const bufs = Array.from(s.buffers.values())
+          .filter((b) => b.connectionId !== "_default")
+          .map((b) => ({
+            ...b,
+            connectionLabel: s.connections.get(b.connectionId)?.label ?? b.connectionId,
+          }))
+          .sort((a, b) => {
+            const lc = a.connectionLabel.localeCompare(b.connectionLabel, undefined, { sensitivity: "base" })
+            if (lc !== 0) return lc
+            const ga = getSortGroup(a.type), gb = getSortGroup(b.type)
+            if (ga !== gb) return ga - gb
+            return a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+          })
+        return bufs.map((b) => b.id)
+      }
+
+      // Esc+1..9 → buffer 1-9, Esc+0 → buffer 10
+      if (key.name >= "1" && key.name <= "9") {
+        const idx = parseInt(key.name, 10) - 1
+        const ids = getSortedIds()
+        if (idx < ids.length) {
+          s.setActiveBuffer(ids[idx])
+          key.preventDefault()
+        }
+        return
+      }
+      if (key.name === "0") {
+        const ids = getSortedIds()
+        if (ids.length >= 10) {
+          s.setActiveBuffer(ids[9])
+          key.preventDefault()
+        }
+        return
+      }
+
+      // Esc+Left/Right → prev/next buffer (wrap)
+      if (key.name === "left" || key.name === "right") {
+        const ids = getSortedIds()
+        if (ids.length === 0) return
+        const currentIdx = s.activeBufferId ? ids.indexOf(s.activeBufferId) : -1
+        let next: number
+        if (key.name === "left") {
+          next = currentIdx <= 0 ? ids.length - 1 : currentIdx - 1
+        } else {
+          next = currentIdx >= ids.length - 1 ? 0 : currentIdx + 1
+        }
+        s.setActiveBuffer(ids[next])
+        key.preventDefault()
+        return
+      }
     }
   })
 
@@ -37,6 +115,7 @@ export function App() {
   // Load config + theme during splash (but don't connect yet)
   useEffect(() => {
     async function init() {
+      await initHomeDir()
       const config = await loadConfig(CONFIG_PATH)
       setConfig(config)
 
@@ -53,8 +132,35 @@ export function App() {
   const handleSplashDone = useCallback(() => {
     setShowSplash(false)
     connectAllAutoconnect()
-    // Activate first Status buffer so user sees connection progress
+
     const s = useStore.getState()
+
+    // If no autoconnect created a buffer, create a default Status buffer
+    if (s.buffers.size === 0) {
+      const bufferId = makeBufferId("_default", "Status")
+      s.addBuffer({
+        id: bufferId,
+        connectionId: "_default",
+        type: BufferType.Server,
+        name: "Status",
+        messages: [{
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          type: "event" as const,
+          text: "Welcome to kokoIRC. Type /connect to connect to a server.",
+          highlight: false,
+        }],
+        activity: ActivityLevel.None,
+        unreadCount: 0,
+        lastRead: new Date(),
+        users: new Map(),
+        listModes: new Map(),
+      })
+      s.setActiveBuffer(bufferId)
+      return
+    }
+
+    // Activate first Status buffer so user sees connection progress
     for (const buf of s.buffers.values()) {
       if (buf.type === BufferType.Server) {
         s.setActiveBuffer(buf.id)

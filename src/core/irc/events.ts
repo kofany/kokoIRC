@@ -1,4 +1,4 @@
-import type { Client } from "irc-framework"
+import type { Client } from "kofany-irc-framework"
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
 import type { Message } from "@/types"
@@ -9,6 +9,14 @@ import { shouldIgnore } from "./ignore"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
+}
+
+/** Get list modes (CHANMODES category A) from ISUPPORT, fallback to beIR. */
+function getListModes(connectionId: string): Set<string> {
+  const conn = useStore.getState().connections.get(connectionId)
+  const chanmodes = conn?.isupport?.CHANMODES
+  if (chanmodes) return new Set(chanmodes.split(",")[0])
+  return new Set(["b", "e", "I", "R"])
 }
 
 export function bindEvents(client: Client, connectionId: string) {
@@ -70,6 +78,7 @@ export function bindEvents(client: Client, connectionId: string) {
         unreadCount: 0,
         lastRead: new Date(),
         users: new Map(),
+        listModes: new Map(),
       })
       // Switch to the newly joined channel
       getStore().setActiveBuffer(bufferId)
@@ -170,6 +179,7 @@ export function bindEvents(client: Client, connectionId: string) {
         lastRead: new Date(),
         users: new Map(),
         topic: host,
+        listModes: new Map(),
       })
     } else if (!isChannel) {
       // Update hostname if we got new info
@@ -375,7 +385,8 @@ export function bindEvents(client: Client, connectionId: string) {
       })
     }
 
-    // Update channel modes (non-nick-prefix modes)
+    // Update channel modes (non-nick-prefix, non-list modes)
+    const listModes = getListModes(connectionId)
     const buf = getStore().buffers.get(bufferId)
     if (buf) {
       let chanModes = buf.modes ?? ""
@@ -384,6 +395,19 @@ export function bindEvents(client: Client, connectionId: string) {
         const isAdding = mc.mode.startsWith("+")
         const modeChar = mc.mode.replace(/[+-]/, "")
         if (modeOrder.includes(modeChar)) continue // nick prefix mode
+        if (listModes.has(modeChar)) {
+          // Track list mode changes in store
+          if (isAdding && mc.param) {
+            getStore().addListEntry(bufferId, modeChar, {
+              mask: mc.param,
+              setBy: event.nick || "server",
+              setAt: Date.now() / 1000,
+            })
+          } else if (!isAdding && mc.param) {
+            getStore().removeListEntry(bufferId, modeChar, mc.param)
+          }
+          continue // don't add to channel modes string
+        }
         if (isAdding && !chanModes.includes(modeChar)) {
           chanModes += modeChar
         } else if (!isAdding) {
@@ -577,23 +601,45 @@ export function bindEvents(client: Client, connectionId: string) {
     const bufferId = makeBufferId(connectionId, event.channel)
     const target = s.buffers.has(bufferId) ? bufferId : statusId
 
-    if (event.bans.length === 0) {
-      s.addMessage(target, makeEventMessage(
-        `%Z565f89${event.channel}: Ban list is empty%N`
-      ))
-      return
-    }
+    // Convert to ListEntry[] and store
+    const entries = event.bans.map((ban: any) => ({
+      mask: ban.banned,
+      setBy: ban.banned_by || "",
+      setAt: ban.banned_at || 0,
+    }))
+    getStore().setListEntries(bufferId, "b", entries)
 
-    s.addMessage(target, makeEventMessage(
-      `%Z7aa2f7───── Ban list for ${event.channel} ─────%N`
-    ))
-    for (const ban of event.bans) {
-      const by = ban.banned_by ? ` set by ${ban.banned_by}` : ""
-      const at = ban.banned_at ? ` [${formatDate(new Date(ban.banned_at * 1000))}]` : ""
-      getStore().addMessage(target, makeEventMessage(
-        `%Za9b1d6  ${ban.banned}%Z565f89${by}${at}%N`
-      ))
-    }
+    displayNumberedList(target, "Ban list", event.channel, entries)
+  })
+
+  // ─── Exception list (irc-framework "exceptlist" event) ──────
+  client.on("exceptlist", (event: any) => {
+    const s = getStore()
+    const bufferId = makeBufferId(connectionId, event.channel)
+    const target = s.buffers.has(bufferId) ? bufferId : statusId
+
+    const entries = (event.excepts ?? []).map((e: any) => ({
+      mask: e.except || "",
+      setBy: e.except_by || "",
+      setAt: e.except_at ? parseInt(e.except_at, 10) : 0,
+    }))
+    getStore().setListEntries(bufferId, "e", entries)
+    displayNumberedList(target, "Exception list", event.channel, entries)
+  })
+
+  // ─── Invite list (irc-framework "inviteList" event) ────────
+  client.on("inviteList", (event: any) => {
+    const s = getStore()
+    const bufferId = makeBufferId(connectionId, event.channel)
+    const target = s.buffers.has(bufferId) ? bufferId : statusId
+
+    const entries = (event.invites ?? []).map((e: any) => ({
+      mask: e.invited || "",
+      setBy: e.invited_by || "",
+      setAt: e.invited_at ? parseInt(e.invited_at, 10) : 0,
+    }))
+    getStore().setListEntries(bufferId, "I", entries)
+    displayNumberedList(target, "Invite exception list", event.channel, entries)
   })
 
   // ─── Login / Account ───────────────────────────────────────
@@ -630,11 +676,15 @@ export function bindEvents(client: Client, connectionId: string) {
 
     // 324 — RPL_CHANNELMODEIS
     if (event.raw_modes) {
+      const listModeSet = getListModes(connectionId)
+      // Filter out list mode chars from the displayed modes
       const modeChars = event.raw_modes.replace(/^\+/, "")
+        .split("").filter((ch) => !listModeSet.has(ch)).join("")
       const params: Record<string, string> = {}
       if (event.modes) {
         for (const mc of event.modes) {
           const ch = mc.mode.replace(/[+-]/, "")
+          if (listModeSet.has(ch)) continue
           if (mc.param) params[ch] = mc.param
         }
       }
@@ -678,6 +728,32 @@ export function bindEvents(client: Client, connectionId: string) {
     ))
   })
 
+  // ─── Reop list (344/345) ─────────────────────────────────────
+  // 344 is mapped to RPL_WHOISCOUNTRY in irc-framework's numerics and gets
+  // consumed by the WHOIS handler — it never reaches "unknown command".
+  // We intercept it via raw middleware which fires before handler dispatch.
+  // 345 (end-of-list) is NOT mapped, so it arrives via "unknown command".
+  const reopCollector = new Map<string, { mask: string; setBy: string; setAt: number }[]>()
+
+  client.use(function reopMiddleware(_client: any, rawEvents: any, _parsedEvents: any) {
+    rawEvents.use(function reopHandler(command: string, message: any, _rawLine: string, __client: any, next: () => void) {
+      if (command !== "344") { next(); return }
+      const params = message.params ?? []
+      const channel = params[1]
+      // Disambiguate: RPL_REOPLIST has a channel (#...) in param[1],
+      // RPL_WHOISCOUNTRY has a nick. Only collect if it's a channel.
+      if (channel && isChannelTarget(channel)) {
+        if (!reopCollector.has(channel)) reopCollector.set(channel, [])
+        reopCollector.get(channel)!.push({
+          mask: params[2] || "",
+          setBy: params[3] || "",
+          setAt: params[4] ? parseInt(params[4], 10) : 0,
+        })
+      }
+      next()
+    })
+  })
+
   // ─── Catch-all for unhandled numerics ──────────────────────
   client.on("unknown command", (command) => {
     // Only handle IRC numerics (3-digit codes)
@@ -685,6 +761,19 @@ export function bindEvents(client: Client, connectionId: string) {
 
     const numeric = parseInt(command.command, 10)
     const params = [...command.params]
+
+    // 345 RPL_ENDOFREOPLIST: <nick> <channel> :End of Channel Reop List
+    if (numeric === 345) {
+      const channel = params[1]
+      const entries = reopCollector.get(channel) ?? []
+      reopCollector.delete(channel)
+      const bufferId = makeBufferId(connectionId, channel)
+      const s = getStore()
+      const target = s.buffers.has(bufferId) ? bufferId : statusId
+      getStore().setListEntries(bufferId, "R", entries)
+      displayNumberedList(target, "Reop list", channel, entries)
+      return
+    }
 
     // First param is usually our nick — skip it
     if (params.length > 1) params.shift()
@@ -818,6 +907,33 @@ export function bindEvents(client: Client, connectionId: string) {
       getStore().addMessage(targetBuffer, makeEventMessage(line))
     }
   })
+}
+
+/** Display a numbered list of ListEntry items. */
+function displayNumberedList(
+  target: string,
+  label: string,
+  channel: string,
+  entries: { mask: string; setBy: string; setAt: number }[],
+) {
+  const s = useStore.getState()
+  if (entries.length === 0) {
+    s.addMessage(target, makeEventMessage(
+      `%Z565f89${channel}: ${label} is empty%N`
+    ))
+    return
+  }
+  s.addMessage(target, makeEventMessage(
+    `%Z7aa2f7───── ${label} for ${channel} ─────%N`
+  ))
+  for (let i = 0; i < entries.length; i++) {
+    const e = entries[i]
+    const by = e.setBy ? `  set by ${e.setBy}` : ""
+    const at = e.setAt ? ` [${formatDate(new Date(e.setAt * 1000))}]` : ""
+    s.addMessage(target, makeEventMessage(
+      `%Ze0af68${(i + 1).toString().padStart(2)}.%N %Za9b1d6${e.mask}%Z565f89${by}${at}%N`
+    ))
+  }
 }
 
 /** System/inline event — text may contain %Z color codes. */

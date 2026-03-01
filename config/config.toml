@@ -4,6 +4,8 @@ username = "maxedIRC"
 realname = "maxed irc client"
 theme = "default"
 timestamp_format = "%H:%M:%S"
+flood_protection = true
+ctcp_version = "kokoIRC — koko maxed irc client"
 
 [display]
 nick_column_width = 8
@@ -14,18 +16,18 @@ show_timestamps = true
 scrollback_lines = 2000
 
 [sidepanel.left]
-width = 18
+width = 14
 visible = true
 
 [sidepanel.right]
-width = 18
+width = 14
 visible = true
 
 [statusbar]
 enabled = true
-items = [ "time", "active_windows", "nick_info", "channel_info", "lag" ]
+items = [ "time", "nick_info", "channel_info", "lag", "active_windows" ]
 separator = " | "
-prompt = "❱ "
+prompt = "[$server❱ "
 
 [servers.ircnet]
 label = "IRCnet"

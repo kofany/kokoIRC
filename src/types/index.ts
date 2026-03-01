@@ -51,6 +51,7 @@ export interface Buffer {
   users: Map<string, NickEntry>
   modes?: string
   modeParams?: Record<string, string>
+  listModes: Map<ListModeKey, ListEntry[]>
 }
 
 // === Message ===
@@ -79,6 +80,16 @@ export interface NickEntry {
   away: boolean
   account?: string
 }
+
+// === List modes (bans, exceptions, invex, reop) ===
+
+export interface ListEntry {
+  mask: string
+  setBy: string
+  setAt: number  // unix timestamp
+}
+
+export type ListModeKey = string  // mode char: "b" | "e" | "I" | "R" etc.
 
 // === Sort helpers ===
 

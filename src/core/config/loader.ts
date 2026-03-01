@@ -1,5 +1,6 @@
 import { parse as parseTOML, stringify as stringifyTOML } from "smol-toml"
 import { DEFAULT_CONFIG } from "./defaults"
+import { ENV_PATH } from "@/core/constants"
 import type { AppConfig, ServerConfig, IgnoreEntry } from "@/types/config"
 
 /** Create a deep-ish clone of config, safe for in-place mutation. */
@@ -148,8 +149,7 @@ export async function saveCredentialsToEnv(
   serverId: string,
   credentials: { sasl_user?: string; sasl_pass?: string; password?: string },
 ): Promise<void> {
-  const envPath = ".env"
-  const file = Bun.file(envPath)
+  const file = Bun.file(ENV_PATH)
   let content = (await file.exists()) ? await file.text() : ""
 
   const prefix = serverId.toUpperCase()
@@ -167,5 +167,5 @@ export async function saveCredentialsToEnv(
     }
   }
 
-  await Bun.write(envPath, content)
+  await Bun.write(ENV_PATH, content)
 }

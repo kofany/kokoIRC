@@ -1,6 +1,6 @@
 import { useStore } from "@/core/state/store"
 import type { IgnoreLevel, IgnoreEntry } from "@/types/config"
-import type { Client } from "irc-framework"
+import type { Client } from "kofany-irc-framework"
 
 // ─── Wildcard matching ───────────────────────────────────────
 

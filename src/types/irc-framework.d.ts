@@ -1,4 +1,4 @@
-declare module "irc-framework" {
+declare module "kofany-irc-framework" {
   // ─── Event interfaces ──────────────────────────────────────
 
   export interface RegisteredEvent {

@@ -1,8 +1,18 @@
 {
-  "name": "opentui_irc",
+  "name": "kokoirc-client",
+  "version": "0.1.2",
+  "description": "Terminal IRC client built with OpenTUI and React",
   "module": "src/index.tsx",
   "type": "module",
-  "private": true,
+  "bin": {
+    "kokoirc": "src/index.tsx"
+  },
+  "files": [
+    "src",
+    "themes",
+    "docs/commands",
+    "tsconfig.json"
+  ],
   "scripts": {
     "start": "bun run src/index.tsx",
     "dev": "bun --watch run src/index.tsx",
@@ -14,10 +24,13 @@
     "@types/react": "^19.2.14",
     "typescript": "^5.9.3"
   },
+  "imports": {
+    "@/*": "./src/*"
+  },
   "dependencies": {
     "@opentui/core": "^0.1.83",
     "@opentui/react": "^0.1.83",
-    "irc-framework": "github:kofany/irc-framework#feature/ctcp-event-consistency",
+    "kofany-irc-framework": "^4.14.1",
     "react": "^19.2.4",
     "smol-toml": "^1.6.0",
     "zustand": "^5.0.11"
