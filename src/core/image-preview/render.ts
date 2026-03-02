@@ -77,11 +77,12 @@ export async function preparePreview(url: string): Promise<void> {
     // 5. Detect protocol
     const [protocol, detectedTerminal] = detectProtocol(config.protocol)
     const inTmux = isInsideTmux()
-    // In tmux, force PNG format for kitty protocol. Raw RGBA produces hundreds
-    // of chunks (e.g. 453 for a 492×656 image) — each with a 2ms busy-wait for
-    // subterm compatibility. 900ms of main thread blocking triggers malloc
-    // double-free in Bun's kqueue stdin handling. PNG compresses to ~20-35 chunks.
-    const kittyFmt: KittyFormat = (inTmux && protocol === "kitty") ? "png" : (config.kitty_format ?? "rgba") as KittyFormat
+    // Always use PNG for kitty protocol. Raw RGBA (f=32) produces hundreds of
+    // chunks (453 for a 492×656 image) — causes chunk misalignment in terminals
+    // with async parsers (subterm), and hundreds of writeSync calls trigger
+    // malloc double-free in Bun. PNG compresses to ~20-35 chunks, and terminals
+    // decode it natively via createImageBitmap/PNG decoder — more robust.
+    const kittyFmt: KittyFormat = (protocol === "kitty") ? "png" : (config.kitty_format ?? "rgba") as KittyFormat
     dbg(`terminal: ${detectedTerminal}${inTmux ? " (tmux)" : ""}`)
     dbg(`protocol: ${protocol}${inTmux ? " (tmux)" : ""} [config=${config.protocol}, kitty_fmt=${kittyFmt}]`)
 
@@ -225,21 +226,21 @@ export async function preparePreview(url: string): Promise<void> {
         // Disable mouse tracking at terminal level
         writeSync(1, MOUSE_DISABLE)
 
-        // Build the entire image payload as ONE buffer, then write ONCE.
-        // Minimizes writeSync syscalls through Bun's I/O layer — multiple
-        // rapid write() calls can trigger malloc double-free in Bun's
-        // internal buffer management. erssi does one fwrite() in non-tmux;
-        // for tmux, pre-wrap each chunk in DCS then concatenate.
-        const parts: string[] = [`\x1b7\x1b[${interiorRow};${interiorCol}H`]
-        for (const chunk of rawChunks) {
-          if (inTmux && protocol !== "symbols") {
-            parts.push(wrapTmuxDCS(chunk))
-          } else {
-            parts.push(chunk)
+        // Write strategy differs by environment:
+        // - Direct (no tmux): one write of all chunks — matches erssi's fwrite()
+        // - tmux: per-chunk writeSync — matches erssi's per-chunk fflush().
+        //   tmux needs to process each DCS individually; one big write can cause
+        //   tmux to split delivery at arbitrary boundaries → partial images.
+        //   With PNG (~25 chunks), ~25 writeSync calls are safe for Bun.
+        writeSync(1, `\x1b7\x1b[${interiorRow};${interiorCol}H`)
+        if (inTmux && protocol !== "symbols") {
+          for (const chunk of rawChunks) {
+            writeSync(1, Buffer.from(wrapTmuxDCS(chunk)))
           }
+        } else {
+          writeSync(1, Buffer.from(rawChunks.join("")))
         }
-        parts.push("\x1b8")
-        writeSync(1, Buffer.from(parts.join("")))
+        writeSync(1, "\x1b8")
 
         // Re-enable mouse tracking
         writeSync(1, MOUSE_ENABLE)
