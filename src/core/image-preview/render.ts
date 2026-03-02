@@ -75,9 +75,14 @@ export async function preparePreview(url: string): Promise<void> {
     }
 
     // 5. Detect protocol
-    const protocol = detectProtocol(config.protocol)
+    const [protocol, detectedTerminal] = detectProtocol(config.protocol)
     const inTmux = isInsideTmux()
-    const kittyFmt = (config.kitty_format ?? "rgba") as KittyFormat
+    // In tmux, force PNG format for kitty protocol. Raw RGBA produces hundreds
+    // of chunks (e.g. 453 for a 492×656 image) — each with a 2ms busy-wait for
+    // subterm compatibility. 900ms of main thread blocking triggers malloc
+    // double-free in Bun's kqueue stdin handling. PNG compresses to ~20-35 chunks.
+    const kittyFmt: KittyFormat = (inTmux && protocol === "kitty") ? "png" : (config.kitty_format ?? "rgba") as KittyFormat
+    dbg(`terminal: ${detectedTerminal}${inTmux ? " (tmux)" : ""}`)
     dbg(`protocol: ${protocol}${inTmux ? " (tmux)" : ""} [config=${config.protocol}, kitty_fmt=${kittyFmt}]`)
 
     // 6. Calculate display dimensions — match erssi's approach:

@@ -30,7 +30,7 @@ function matchTermName(name: string): ImageProtocol | null {
   if (t.includes("ghostty")) return "kitty"
   if (t.includes("wezterm")) return "kitty"
   if (t.includes("rio")) return "kitty"
-  // Future: subterm will report "Subterm" in termtype
+  // Subterm: "subterm x.x.x" from termtype, LC_TERMINAL=Subterm without tmux
   if (t.includes("subterm")) return "kitty"
 
   // Sixel-capable terminals
@@ -45,12 +45,13 @@ function matchTermName(name: string): ImageProtocol | null {
 }
 
 /** Detect the best image display protocol for the current terminal.
+ *  Returns [protocol, detectedName] — detectedName is the raw string that matched.
  *  In tmux: queries #{client_termtype} first (returns real terminal identity
  *  like "iTerm2 3.6.8", "ghostty 1.3.0"), then #{client_termname} as fallback.
  *  Outside tmux: checks env vars, then generic TERM. */
-export function detectProtocol(configOverride?: string): ImageProtocol {
+export function detectProtocol(configOverride?: string): [ImageProtocol, string] {
   if (configOverride && configOverride !== "auto") {
-    return configOverride as ImageProtocol
+    return [configOverride as ImageProtocol, `config:${configOverride}`]
   }
 
   const inTmux = isInsideTmux()
@@ -58,14 +59,14 @@ export function detectProtocol(configOverride?: string): ImageProtocol {
   // ─── tmux: query the REAL outer terminal ───────────────────
   if (inTmux) {
     // #{client_termtype} returns the actual terminal identity
-    // (e.g. "iTerm2 3.6.8", "ghostty 1.3.0-main+...", "Subterm 1.0")
+    // (e.g. "iTerm2 3.6.8", "ghostty 1.3.0-main+...", "subterm 1.0")
     // unlike #{client_termname} which returns generic "xterm-256color" for iTerm2
     try {
       const result = Bun.spawnSync(["tmux", "display-message", "-p", "#{client_termtype}"])
       const termType = new TextDecoder().decode(result.stdout).trim()
       if (termType) {
         const match = matchTermName(termType)
-        if (match) return match
+        if (match) return [match, termType]
       }
     } catch {}
 
@@ -75,7 +76,7 @@ export function detectProtocol(configOverride?: string): ImageProtocol {
       const termName = new TextDecoder().decode(result.stdout).trim()
       if (termName) {
         const match = matchTermName(termName)
-        if (match) return match
+        if (match) return [match, termName]
       }
     } catch {}
   }
@@ -85,19 +86,20 @@ export function detectProtocol(configOverride?: string): ImageProtocol {
   const lcTerminal = (process.env.LC_TERMINAL ?? "").toLowerCase()
 
   if (termProgram === "iterm.app" || termProgram === "iterm2" || lcTerminal === "iterm2") {
-    return "iterm2"
+    return ["iterm2", `TERM_PROGRAM=${process.env.TERM_PROGRAM ?? lcTerminal}`]
   }
-  if (termProgram === "wezterm") return "kitty"
-  if (termProgram === "rio") return "kitty"
-  if (termProgram === "mintty") return "sixel"
-  if (process.env.KITTY_PID) return "kitty"
-  if (process.env.GHOSTTY_RESOURCES_DIR) return "kitty"
-  if (process.env.WT_SESSION) return "sixel"
+  if (lcTerminal === "subterm") return ["kitty", `LC_TERMINAL=${process.env.LC_TERMINAL}`]
+  if (termProgram === "wezterm") return ["kitty", `TERM_PROGRAM=${process.env.TERM_PROGRAM}`]
+  if (termProgram === "rio") return ["kitty", `TERM_PROGRAM=${process.env.TERM_PROGRAM}`]
+  if (termProgram === "mintty") return ["sixel", `TERM_PROGRAM=${process.env.TERM_PROGRAM}`]
+  if (process.env.KITTY_PID) return ["kitty", `KITTY_PID=${process.env.KITTY_PID}`]
+  if (process.env.GHOSTTY_RESOURCES_DIR) return ["kitty", "GHOSTTY_RESOURCES_DIR"]
+  if (process.env.WT_SESSION) return ["sixel", "WT_SESSION"]
 
   // Generic TERM value — last resort
   const term = (process.env.TERM ?? "").toLowerCase()
   const termMatch = matchTermName(term)
-  if (termMatch) return termMatch
+  if (termMatch) return [termMatch, `TERM=${process.env.TERM}`]
 
-  return "symbols"
+  return ["symbols", "unknown"]
 }
