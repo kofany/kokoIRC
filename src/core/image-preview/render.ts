@@ -220,23 +220,17 @@ export async function preparePreview(url: string): Promise<void> {
         // Disable mouse tracking at terminal level
         writeSync(1, MOUSE_DISABLE)
 
-        // Write EACH chunk as a separate writeSync call.
-        // Subterm's terminal.write() is async-without-await, so a single giant
-        // write delivered via PTY can be split by the OS into multiple read events.
-        // If two read events hit processData() concurrently, the parser's
-        // pendingData state can race and sequences get lost (base64 leak).
+        // Write EACH chunk as a separate writeSync call — matches erssi's
+        // per-chunk fflush(stdout) pattern. No delay between chunks: erssi
+        // doesn't use usleep/nanosleep between image chunks either, just fflush.
+        // writeSync is the equivalent of fprintf+fflush (unbuffered, immediate).
+        // Previous attempts to add delays (sleepSync, busy-wait, async sleep)
+        // all caused either malloc double-free or UI corruption — the delay
+        // itself is incompatible with Bun's kqueue-based I/O architecture.
         writeSync(1, `\x1b7\x1b[${interiorRow};${interiorCol}H`)
         for (const chunk of rawChunks) {
           if (inTmux && protocol !== "symbols") {
             writeSync(1, Buffer.from(wrapTmuxDCS(chunk)))
-            // Busy-wait 2ms between DCS chunks — matches erssi's fflush(stdout) pattern.
-            // Gives tmux time to process+flush each chunk before the next arrives.
-            // Safe with paused stdin: kqueue won't schedule reads, no data accumulates,
-            // so the busy-wait doesn't trigger the malloc double-free.
-            // MUST be synchronous (not async) — yielding to the event loop would let
-            // OpenTUI render frames between chunks, corrupting tmux state.
-            const waitUntil = Bun.nanoseconds() + 2_000_000
-            while (Bun.nanoseconds() < waitUntil) {}
           } else {
             writeSync(1, Buffer.from(chunk))
           }

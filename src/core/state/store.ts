@@ -133,26 +133,12 @@ export const useStore = create<AppState>((set, get) => ({
         }
       }
 
-      // Write blank spaces over the image area. This clears:
-      // - iTerm2/Sixel/Symbols: inline image cells in the cell buffer
-      // Skip for kitty — graphics are on a separate layer, delete command removes them.
-      // Blank spaces create background artifacts (default bg vs theme bg).
-      const needsBlankClear = prev.protocol && prev.protocol !== "kitty"
-      if (needsBlankClear) {
-        const termCols = process.stdout.columns || 80
-        const termRows = process.stdout.rows || 24
-        const w = prev.width || 0
-        const h = prev.height || 0
-        const left = Math.max(0, Math.floor((termCols - w) / 2))
-        const top = Math.max(0, Math.floor((termRows - h) / 2))
-        const blankLine = " ".repeat(w)
-        let clear = "\x1b7" // save cursor
-        for (let row = 0; row < h; row++) {
-          clear += `\x1b[${top + row + 1};${left + 1}H${blankLine}`
-        }
-        clear += "\x1b8" // restore cursor
-        writeSync(1, clear)
-      }
+      // For non-kitty protocols (iTerm2/Sixel/Symbols), images are part of
+      // the cell buffer. erssi clears them via mainwindows_redraw() — a full
+      // text repaint that overwrites image cells with real content.
+      // Our equivalent is SIGWINCH below, which forces OpenTUI to repaint.
+      // Do NOT write blank spaces — they use default terminal bg and create
+      // artifacts that SIGWINCH may not overwrite (differential rendering).
 
       // Re-enable mouse tracking
       writeSync(1, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h")
@@ -161,11 +147,21 @@ export const useStore = create<AppState>((set, get) => ({
       resumeStdin()
     } catch {}
 
-    // Remove overlay from React tree, then force OpenTUI full repaint
-    // via SIGWINCH (fake resize signal) — erssi equivalent of mainwindows_redraw()
+    // Remove overlay from React tree, then force OpenTUI full repaint.
+    // OpenTUI's processResize skips repaint if dimensions haven't changed,
+    // so a plain SIGWINCH is a no-op. To force a real repaint (erssi's
+    // mainwindows_redraw equivalent), temporarily change stdout.columns
+    // so OpenTUI sees a "resize" and redraws all cells — overwriting any
+    // iTerm2/Sixel image remnants in the terminal's cell buffer.
     set({ imagePreview: null })
+    const cols = process.stdout.columns || 80
     setTimeout(() => {
+      process.stdout.columns = cols - 1
       process.kill(process.pid, "SIGWINCH")
+      setTimeout(() => {
+        process.stdout.columns = cols
+        process.kill(process.pid, "SIGWINCH")
+      }, 16)
     }, 16)
   },
 
