@@ -129,8 +129,9 @@ export const useStore = create<AppState>((set, get) => ({
         }
       } else {
         // iTerm2/Sixel/Symbols: image is in the cell buffer — overwrite with
-        // spaces to clear it (erssi's mainwindows_redraw equivalent).
-        // OpenTUI will then redraw the real content on the next render cycle.
+        // spaces using theme bg color. OpenTUI's diff renderer skips empty
+        // cells (they look "unchanged"), so we must fill them with the correct
+        // bg to avoid a default-bg hole where the image was.
         const termCols = process.stdout.columns || 80
         const termRows = process.stdout.rows || 24
         const popupW = prev.width || 0
@@ -138,10 +139,17 @@ export const useStore = create<AppState>((set, get) => ({
         if (popupW > 0 && popupH > 0) {
           const left = Math.max(0, Math.floor((termCols - popupW) / 2))
           const top = Math.max(0, Math.floor((termRows - popupH) / 2))
-          const blankLine = " ".repeat(popupW)
+          // Use theme bg color for spaces so empty cells match the UI
+          const theme = get().theme
+          const hex = theme?.colors?.bg ?? "#1a1b26"
+          const r = parseInt(hex.slice(1, 3), 16)
+          const g = parseInt(hex.slice(3, 5), 16)
+          const b = parseInt(hex.slice(5, 7), 16)
+          const bgSeq = `\x1b[48;2;${r};${g};${b}m`
+          const blankLine = bgSeq + " ".repeat(popupW) + "\x1b[0m"
           writeSync(1, "\x1b7") // save cursor
-          for (let r = 0; r < popupH; r++) {
-            writeSync(1, `\x1b[${top + r + 1};${left + 1}H${blankLine}`)
+          for (let row = 0; row < popupH; row++) {
+            writeSync(1, `\x1b[${top + row + 1};${left + 1}H${blankLine}`)
           }
           writeSync(1, "\x1b8") // restore cursor
         }
