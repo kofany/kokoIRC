@@ -115,15 +115,11 @@ export const useStore = create<AppState>((set, get) => ({
       const { pauseStdin, resumeStdin } = require("@/core/image-preview/stdin-guard")
       const inTmux = !!process.env.TMUX
 
-      // Pause stdin to prevent malloc double-free from kqueue stdin race
       pauseStdin()
-
-      // Disable mouse tracking during cleanup writes
       writeSync(1, "\x1b[?1003l\x1b[?1006l\x1b[?1002l\x1b[?1000l")
 
-      // Protocol-specific cleanup (like erssi's image_render_clear_graphics)
       if (prev.protocol === "kitty") {
-        // q=2: suppress terminal response to prevent PTY echo / malloc issues
+        // Kitty: image is on separate graphics layer — delete command removes it
         const deleteCmd = "\x1b_Ga=d,q=2\x1b\\"
         if (inTmux) {
           const escaped = deleteCmd.replace(/\x1b/g, "\x1b\x1b")
@@ -131,38 +127,31 @@ export const useStore = create<AppState>((set, get) => ({
         } else {
           writeSync(1, deleteCmd)
         }
+      } else {
+        // iTerm2/Sixel/Symbols: image is in the cell buffer — overwrite with
+        // spaces to clear it (erssi's mainwindows_redraw equivalent).
+        // OpenTUI will then redraw the real content on the next render cycle.
+        const termCols = process.stdout.columns || 80
+        const termRows = process.stdout.rows || 24
+        const popupW = prev.width || 0
+        const popupH = prev.height || 0
+        if (popupW > 0 && popupH > 0) {
+          const left = Math.max(0, Math.floor((termCols - popupW) / 2))
+          const top = Math.max(0, Math.floor((termRows - popupH) / 2))
+          const blankLine = " ".repeat(popupW)
+          writeSync(1, "\x1b7") // save cursor
+          for (let r = 0; r < popupH; r++) {
+            writeSync(1, `\x1b[${top + r + 1};${left + 1}H${blankLine}`)
+          }
+          writeSync(1, "\x1b8") // restore cursor
+        }
       }
 
-      // For non-kitty protocols (iTerm2/Sixel/Symbols), images are part of
-      // the cell buffer. erssi clears them via mainwindows_redraw() — a full
-      // text repaint that overwrites image cells with real content.
-      // Our equivalent is SIGWINCH below, which forces OpenTUI to repaint.
-      // Do NOT write blank spaces — they use default terminal bg and create
-      // artifacts that SIGWINCH may not overwrite (differential rendering).
-
-      // Re-enable mouse tracking
       writeSync(1, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h")
-
-      // Resume stdin reading
       resumeStdin()
     } catch {}
 
-    // Remove overlay from React tree, then force OpenTUI full repaint.
-    // OpenTUI's processResize skips repaint if dimensions haven't changed,
-    // so a plain SIGWINCH is a no-op. To force a real repaint (erssi's
-    // mainwindows_redraw equivalent), temporarily change stdout.columns
-    // so OpenTUI sees a "resize" and redraws all cells — overwriting any
-    // iTerm2/Sixel image remnants in the terminal's cell buffer.
     set({ imagePreview: null })
-    const cols = process.stdout.columns || 80
-    setTimeout(() => {
-      process.stdout.columns = cols - 1
-      process.kill(process.pid, "SIGWINCH")
-      setTimeout(() => {
-        process.stdout.columns = cols
-        process.kill(process.pid, "SIGWINCH")
-      }, 16)
-    }, 16)
   },
 
   addConnection: (conn) => set((s) => {

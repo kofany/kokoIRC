@@ -221,16 +221,21 @@ export async function preparePreview(url: string): Promise<void> {
         writeSync(1, MOUSE_DISABLE)
 
         // Write EACH chunk as a separate writeSync call — matches erssi's
-        // per-chunk fflush(stdout) pattern. No delay between chunks: erssi
-        // doesn't use usleep/nanosleep between image chunks either, just fflush.
-        // writeSync is the equivalent of fprintf+fflush (unbuffered, immediate).
-        // Previous attempts to add delays (sleepSync, busy-wait, async sleep)
-        // all caused either malloc double-free or UI corruption — the delay
-        // itself is incompatible with Bun's kqueue-based I/O architecture.
+        // per-chunk fflush(stdout) pattern.
+        // In tmux: 2ms busy-wait between DCS chunks gives tmux time to
+        // process+flush each chunk individually. Without this, tmux delivers
+        // all unwrapped data as one giant write — subterm's async parser
+        // races on large blobs. pauseStdin() prevents the busy-wait from
+        // triggering malloc double-free (kqueue stdin accumulation).
         writeSync(1, `\x1b7\x1b[${interiorRow};${interiorCol}H`)
         for (const chunk of rawChunks) {
           if (inTmux && protocol !== "symbols") {
             writeSync(1, Buffer.from(wrapTmuxDCS(chunk)))
+            // Busy-wait 2ms between DCS chunks — required for subterm+tmux.
+            // pauseStdin() + tcflush above prevents the malloc double-free
+            // that previously occurred during busy-waits.
+            const waitUntil = Bun.nanoseconds() + 2_000_000
+            while (Bun.nanoseconds() < waitUntil) {}
           } else {
             writeSync(1, Buffer.from(chunk))
           }
