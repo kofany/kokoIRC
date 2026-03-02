@@ -225,20 +225,21 @@ export async function preparePreview(url: string): Promise<void> {
         // Disable mouse tracking at terminal level
         writeSync(1, MOUSE_DISABLE)
 
-        // Write EACH chunk as a separate writeSync call — matches erssi's
-        // per-chunk fflush(stdout) pattern. No delay between chunks:
-        // erssi proves per-chunk fflush with zero delay works for all
-        // terminals including subterm+tmux. writeSync is unbuffered
-        // (direct write() syscall) — equivalent to C's fwrite+fflush.
-        writeSync(1, `\x1b7\x1b[${interiorRow};${interiorCol}H`)
+        // Build the entire image payload as ONE buffer, then write ONCE.
+        // Minimizes writeSync syscalls through Bun's I/O layer — multiple
+        // rapid write() calls can trigger malloc double-free in Bun's
+        // internal buffer management. erssi does one fwrite() in non-tmux;
+        // for tmux, pre-wrap each chunk in DCS then concatenate.
+        const parts: string[] = [`\x1b7\x1b[${interiorRow};${interiorCol}H`]
         for (const chunk of rawChunks) {
           if (inTmux && protocol !== "symbols") {
-            writeSync(1, Buffer.from(wrapTmuxDCS(chunk)))
+            parts.push(wrapTmuxDCS(chunk))
           } else {
-            writeSync(1, Buffer.from(chunk))
+            parts.push(chunk)
           }
         }
-        writeSync(1, "\x1b8")
+        parts.push("\x1b8")
+        writeSync(1, Buffer.from(parts.join("")))
 
         // Re-enable mouse tracking
         writeSync(1, MOUSE_ENABLE)
