@@ -12,5 +12,7 @@ export const THEME_PATH = (name: string) => join(HOME_DIR, "themes", `${name}.th
 export const DOCS_DIR = join(PKG_DIR, "docs/commands")
 export const ENV_PATH = join(HOME_DIR, ".env")
 
+export const SCRIPTS_DIR = join(HOME_DIR, "scripts")
+
 // Default assets bundled with the package
 export const DEFAULT_THEMES_DIR = join(PKG_DIR, "themes")

@@ -53,4 +53,8 @@ export const DEFAULT_CONFIG: AppConfig = {
   },
   aliases: {},
   ignores: [],
+  scripts: {
+    autoload: [],
+    debug: false,
+  },
 }

@@ -48,6 +48,12 @@ export interface IgnoreEntry {
   channels?: string[]     // restrict to specific channels (empty = all)
 }
 
+export interface ScriptsConfig {
+  autoload: string[]
+  debug: boolean
+  [scriptName: string]: any  // per-script config: [scripts.my-script]
+}
+
 export interface AppConfig {
   general: GeneralConfig
   display: DisplayConfig
@@ -56,6 +62,7 @@ export interface AppConfig {
   servers: Record<string, ServerConfig>
   aliases: Record<string, string>
   ignores: IgnoreEntry[]
+  scripts: ScriptsConfig
 }
 
 export interface GeneralConfig {

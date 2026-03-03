@@ -6,6 +6,13 @@ import { BufferType, makeBufferId, ActivityLevel } from "@/types"
 import { DEFAULT_ITEM_FORMATS, ALL_IGNORE_LEVELS, type ServerConfig, type StatusbarItem, type IgnoreLevel, type IgnoreEntry } from "@/types/config"
 import { DEFAULT_CONFIG } from "@/core/config/defaults"
 import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
+import {
+  loadScript,
+  unloadScript,
+  reloadScript,
+  getLoadedScripts,
+  getAvailableScripts,
+} from "@/core/scripts"
 import type { CommandDef } from "./types"
 import {
   addLocalEvent,
@@ -1173,6 +1180,92 @@ export const commands: Record<string, CommandDef> = {
     },
     description: "Remove an ignore rule",
     usage: "/unignore <number|mask>",
+  },
+
+  script: {
+    async handler(args) {
+      const sub = args[0]?.toLowerCase()
+
+      if (!sub || sub === "list") {
+        const scripts = getLoadedScripts()
+        addLocalEvent(`%Z7aa2f7───── Loaded Scripts ─────────────────────%N`)
+        if (scripts.length === 0) {
+          addLocalEvent(`  %Z565f89No scripts loaded%N`)
+        } else {
+          for (const s of scripts) {
+            const ver = s.meta.version ? ` %Z565f89v${s.meta.version}%N` : ""
+            const desc = s.meta.description ? ` — %Z565f89${s.meta.description}%N` : ""
+            addLocalEvent(`  %Z9ece6a●%N %Za9b1d6${s.name}%N${ver}${desc}`)
+          }
+        }
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
+        return
+      }
+
+      if (sub === "available") {
+        const scripts = await getAvailableScripts()
+        addLocalEvent(`%Z7aa2f7───── Available Scripts ───────────────────%N`)
+        if (scripts.length === 0) {
+          addLocalEvent(`  %Z565f89No scripts in ~/.kokoirc/scripts/%N`)
+        } else {
+          for (const s of scripts) {
+            const status = s.loaded ? "%Z9ece6a●%N" : "%Z565f89○%N"
+            addLocalEvent(`  ${status} %Za9b1d6${s.name}%N`)
+          }
+        }
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
+        return
+      }
+
+      if (sub === "load") {
+        const name = args[1]
+        if (!name) {
+          addLocalEvent(`%Zf7768eUsage: /script load <name|path>%N`)
+          return
+        }
+        const result = await loadScript(name)
+        if (result.ok) {
+          addLocalEvent(`%Z9ece6aScript '${result.name}' loaded%N`)
+        } else {
+          addLocalEvent(`%Zf7768e${result.error}%N`)
+        }
+        return
+      }
+
+      if (sub === "unload") {
+        const name = args[1]
+        if (!name) {
+          addLocalEvent(`%Zf7768eUsage: /script unload <name>%N`)
+          return
+        }
+        if (unloadScript(name)) {
+          addLocalEvent(`%Z9ece6aScript '${name}' unloaded%N`)
+        } else {
+          addLocalEvent(`%Zf7768eScript '${name}' is not loaded%N`)
+        }
+        return
+      }
+
+      if (sub === "reload") {
+        const name = args[1]
+        if (!name) {
+          addLocalEvent(`%Zf7768eUsage: /script reload <name>%N`)
+          return
+        }
+        const result = await reloadScript(name)
+        if (result.ok) {
+          addLocalEvent(`%Z9ece6aScript '${result.name}' reloaded%N`)
+        } else {
+          addLocalEvent(`%Zf7768e${result.error}%N`)
+        }
+        return
+      }
+
+      addLocalEvent(`%Zf7768eUnknown subcommand: /script ${sub}%N`)
+      addLocalEvent(`%Z565f89Use: list, available, load, unload, reload%N`)
+    },
+    description: "Manage scripts (load/unload/reload/list)",
+    usage: "/script [list|available|load|unload|reload] [name]",
   },
 
   disconnect: {

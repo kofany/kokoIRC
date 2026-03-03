@@ -6,6 +6,7 @@ import { formatDuration, formatDate, buildModeString, buildPrefixMap, buildModeO
 import { handleNetsplitQuit, handleNetsplitJoin, destroyNetsplitState } from "./netsplit"
 import { shouldSuppressNickFlood, destroyAntifloodState } from "./antiflood"
 import { shouldIgnore } from "./ignore"
+import { eventBus } from "@/core/scripts"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
@@ -47,6 +48,8 @@ export function bindEvents(client: Client, connectionId: string) {
 
   // ─── Registration ─────────────────────────────────────────
   client.on("registered", (event) => {
+    eventBus.emit("connected", { connectionId, nick: event.nick })
+
     const s = getStore()
     s.updateConnection(connectionId, { status: "connected", nick: event.nick })
     statusMsg(`%Z9ece6aRegistered as %Zc0caf5${event.nick}%N`)
@@ -63,6 +66,11 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("join", (event) => {
+    if (!eventBus.emit("irc.join", {
+      connectionId, nick: event.nick, ident: event.ident,
+      hostname: event.hostname, channel: event.channel, account: event.account,
+    })) return
+
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
     const conn = s.connections.get(connectionId)
@@ -101,6 +109,11 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("part", (event) => {
+    if (!eventBus.emit("irc.part", {
+      connectionId, nick: event.nick, ident: event.ident,
+      hostname: event.hostname, channel: event.channel, message: event.message,
+    })) return
+
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
     const conn = s.connections.get(connectionId)
@@ -117,6 +130,11 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("quit", (event) => {
+    if (!eventBus.emit("irc.quit", {
+      connectionId, nick: event.nick, ident: event.ident,
+      hostname: event.hostname, message: event.message,
+    })) return
+
     const s = getStore()
     const affected = Array.from(s.buffers.entries())
       .filter(([_, buf]) => buf.connectionId === connectionId && buf.users.has(event.nick))
@@ -142,6 +160,11 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("kick", (event) => {
+    if (!eventBus.emit("irc.kick", {
+      connectionId, nick: event.nick, ident: event.ident, hostname: event.hostname,
+      channel: event.channel, kicked: event.kicked, message: event.message,
+    })) return
+
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
     const conn = s.connections.get(connectionId)
@@ -160,8 +183,13 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("privmsg", (event) => {
-    const s = getStore()
     const isChannel = isChannelTarget(event.target)
+    if (!eventBus.emit("irc.privmsg", {
+      connectionId, nick: event.nick, ident: event.ident, hostname: event.hostname,
+      target: event.target, message: event.message, tags: event.tags, time: event.time, isChannel,
+    })) return
+
+    const s = getStore()
     const bufferName = isChannel ? event.target : event.nick
     const bufferId = makeBufferId(connectionId, bufferName)
 
@@ -218,8 +246,13 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("action", (event) => {
-    const s = getStore()
     const isChannel = isChannelTarget(event.target)
+    if (!eventBus.emit("irc.action", {
+      connectionId, nick: event.nick, ident: event.ident, hostname: event.hostname,
+      target: event.target, message: event.message, tags: event.tags, time: event.time, isChannel,
+    })) return
+
+    const s = getStore()
     const bufferName = isChannel ? event.target : event.nick
     const bufferId = makeBufferId(connectionId, bufferName)
 
@@ -235,6 +268,11 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("notice", (event) => {
+    if (!eventBus.emit("irc.notice", {
+      connectionId, nick: event.nick, target: event.target,
+      message: event.message, from_server: event.from_server,
+    })) return
+
     const s = getStore()
     // Server notices go to server buffer
     const bufferId = event.from_server
@@ -266,6 +304,11 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("nick", (event) => {
+    if (!eventBus.emit("irc.nick", {
+      connectionId, nick: event.nick, new_nick: event.new_nick,
+      ident: event.ident, hostname: event.hostname,
+    })) return
+
     const s = getStore()
     const conn = s.connections.get(connectionId)
 
@@ -291,6 +334,10 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("topic", (event) => {
+    if (!eventBus.emit("irc.topic", {
+      connectionId, nick: event.nick, channel: event.channel, topic: event.topic,
+    })) return
+
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.channel)
     s.updateBufferTopic(bufferId, event.topic, event.nick)
@@ -344,6 +391,11 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("mode", (event) => {
+    if (!eventBus.emit("irc.mode", {
+      connectionId, nick: event.nick, target: event.target,
+      modes: Array.isArray(event.modes) ? event.modes : [],
+    })) return
+
     const s = getStore()
     const bufferId = makeBufferId(connectionId, event.target)
     if (!s.buffers.has(bufferId)) return
@@ -439,6 +491,8 @@ export function bindEvents(client: Client, connectionId: string) {
   })
 
   client.on("close", () => {
+    eventBus.emit("disconnected", { connectionId })
+
     clearInterval(lagPingInterval)
     destroyNetsplitState(connectionId)
     destroyAntifloodState(connectionId)
@@ -579,6 +633,10 @@ export function bindEvents(client: Client, connectionId: string) {
 
   // ─── Invite ────────────────────────────────────────────────
   client.on("invite", (event) => {
+    if (!eventBus.emit("irc.invite", {
+      connectionId, nick: event.nick, channel: event.channel,
+    })) return
+
     const s = getStore()
     const target = s.activeBufferId ?? statusId
     s.addMessage(target, makeEventMessage(
@@ -704,12 +762,20 @@ export function bindEvents(client: Client, connectionId: string) {
 
   // ─── Wallops ───────────────────────────────────────────────
   client.on("wallops", (event) => {
+    if (!eventBus.emit("irc.wallops", {
+      connectionId, nick: event.nick, message: event.message, from_server: event.from_server,
+    })) return
+
     const from = event.from_server ? "Server" : event.nick
     statusMsg(`%Zbb9af7[Wallops/${from}] ${event.message}%N`)
   })
 
   // ─── CTCP ─────────────────────────────────────────────────
   client.on("ctcp response", (event) => {
+    if (!eventBus.emit("irc.ctcp_response", {
+      connectionId, nick: event.nick, type: event.type, message: event.message,
+    })) return
+
     const s = getStore()
     const target = s.activeBufferId ?? statusId
     s.addMessage(target, makeEventMessage(
@@ -721,6 +787,9 @@ export function bindEvents(client: Client, connectionId: string) {
     // VERSION is handled internally by irc-framework unless version: null
     // Show other CTCP requests (ACTION is handled separately)
     if (event.type === "ACTION" || event.type === "VERSION") return
+    if (!eventBus.emit("irc.ctcp_request", {
+      connectionId, nick: event.nick, type: event.type, message: event.message,
+    })) return
     const s = getStore()
     const target = s.activeBufferId ?? statusId
     s.addMessage(target, makeEventMessage(

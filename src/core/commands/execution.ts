@@ -3,6 +3,7 @@ import { parseCommand } from "./parser"
 import type { ParsedCommand } from "./parser"
 import { commands, aliasMap, findByAlias } from "./registry"
 import { addLocalEvent } from "./helpers"
+import { eventBus, scriptCommands } from "@/core/scripts"
 
 const MAX_ALIAS_DEPTH = 10
 
@@ -50,6 +51,16 @@ export function executeCommand(parsed: ParsedCommand, connectionId: string, dept
     return false
   }
 
+  // Emit command_input event (scripts can intercept/block commands)
+  if (depth === 0) {
+    const proceed = eventBus.emit("command_input", {
+      command: parsed.command,
+      args: parsed.args,
+      connectionId,
+    })
+    if (!proceed) return true // script stopped propagation
+  }
+
   // 1. Built-in command or built-in alias
   const def = commands[parsed.command] ?? findByAlias(parsed.command)
   if (def) {
@@ -57,7 +68,14 @@ export function executeCommand(parsed: ParsedCommand, connectionId: string, dept
     return true
   }
 
-  // 2. User alias
+  // 2. Script command
+  const scriptCmd = scriptCommands.get(parsed.command)
+  if (scriptCmd) {
+    scriptCmd.def.handler(parsed.args, connectionId)
+    return true
+  }
+
+  // 3. User alias
   const config = useStore.getState().config
   const aliasBody = config?.aliases[parsed.command]
   if (aliasBody) {
@@ -73,16 +91,19 @@ export function executeCommand(parsed: ParsedCommand, connectionId: string, dept
     return true
   }
 
-  // 3. Unknown
+  // 4. Unknown
   addLocalEvent(`%Zf7768eUnknown command: /${parsed.command}. Type /help for available commands.%N`)
   return false
 }
 
-/** All registered command names + built-in aliases + user aliases, sorted. For tab completion. */
+/** All registered command names + built-in aliases + script commands + user aliases, sorted. For tab completion. */
 export function getCommandNames(): string[] {
   const names = Object.keys(commands)
   for (const alias of Object.keys(aliasMap)) {
     names.push(alias)
+  }
+  for (const name of scriptCommands.keys()) {
+    names.push(name)
   }
   const userAliases = useStore.getState().config?.aliases ?? {}
   for (const name of Object.keys(userAliases)) {

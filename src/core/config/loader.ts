@@ -1,7 +1,7 @@
 import { parse as parseTOML, stringify as stringifyTOML } from "smol-toml"
 import { DEFAULT_CONFIG } from "./defaults"
 import { ENV_PATH } from "@/core/constants"
-import type { AppConfig, ServerConfig, IgnoreEntry } from "@/types/config"
+import type { AppConfig, ServerConfig, IgnoreEntry, ScriptsConfig } from "@/types/config"
 
 /** Create a deep-ish clone of config, safe for in-place mutation. */
 export function cloneConfig(config: AppConfig): AppConfig {
@@ -22,6 +22,10 @@ export function cloneConfig(config: AppConfig): AppConfig {
       levels: [...e.levels],
       channels: e.channels ? [...e.channels] : undefined,
     })),
+    scripts: {
+      ...config.scripts,
+      autoload: [...config.scripts.autoload],
+    },
   }
 }
 
@@ -37,6 +41,12 @@ export function mergeWithDefaults(partial: Record<string, any>): AppConfig {
     servers: partial.servers ?? {},
     aliases: partial.aliases ?? {},
     ignores: (partial.ignores as IgnoreEntry[] | undefined) ?? [],
+    scripts: {
+      autoload: [],
+      debug: false,
+      ...DEFAULT_CONFIG.scripts,
+      ...partial.scripts,
+    },
   }
 }
 
@@ -138,6 +148,19 @@ export async function saveConfig(configPath: string, config: AppConfig): Promise
       if (e.channels?.length) obj.channels = e.channels
       return obj
     })
+  }
+
+  // Scripts config — only write if non-default
+  if (config.scripts) {
+    const sc: Record<string, any> = {}
+    if (config.scripts.autoload.length > 0) sc.autoload = config.scripts.autoload
+    if (config.scripts.debug) sc.debug = true
+    // Per-script configs: [scripts.my-script]
+    for (const [key, val] of Object.entries(config.scripts)) {
+      if (key === "autoload" || key === "debug") continue
+      if (typeof val === "object" && val !== null) sc[key] = val
+    }
+    if (Object.keys(sc).length > 0) tomlObj.scripts = sc
   }
 
   const toml = stringifyTOML(tomlObj)

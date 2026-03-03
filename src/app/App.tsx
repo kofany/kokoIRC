@@ -7,6 +7,7 @@ import { connectAllAutoconnect } from "@/core/irc"
 import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
 import { loadAllDocs } from "@/core/commands"
 import { initHomeDir } from "@/core/init"
+import { autoloadScripts } from "@/core/scripts"
 import { BufferType, ActivityLevel, makeBufferId, getSortGroup } from "@/types"
 import { SplashScreen } from "@/ui/splash/SplashScreen"
 import { AppLayout } from "@/ui/layout/AppLayout"
@@ -128,10 +129,11 @@ export function App() {
     init().catch((err) => console.error("[init]", err))
   }, [])
 
-  // After splash finishes → connect and switch to Status window
+  // After splash finishes → connect, autoload scripts, switch to Status window
   const handleSplashDone = useCallback(() => {
     setShowSplash(false)
     connectAllAutoconnect()
+    autoloadScripts().catch((err) => console.error("[scripts] autoload error:", err))
 
     const s = useStore.getState()
 
