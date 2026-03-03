@@ -72,15 +72,26 @@ debug = false
 Scripts are `.ts` files that export a default init function:
 
 ```ts
+import type { KokoAPI, IrcMessageEvent } from "@/core/scripts/types"
+
 export const meta = { name: "my-script", version: "1.0.0", description: "..." }
 export const config = { timeout: 300 }  // defaults for [scripts.my-script]
 
 export default function init(api: KokoAPI) {
-  api.on("irc.privmsg", (event, ctx) => { /* ... */ })
+  // Use api.EventPriority for priority constants (HIGHEST, HIGH, NORMAL, LOW, LOWEST)
+  api.on("irc.privmsg", (event: IrcMessageEvent, ctx) => {
+    // ctx.stop() prevents lower-priority handlers + built-in store update
+  }, api.EventPriority.LOW)
+
   api.command("mycommand", { handler(args, connId) { /* ... */ }, description: "..." })
+
   return () => { /* cleanup on unload */ }
 }
 ```
+
+**Import rules:** Scripts live outside the project, so `@/` path aliases only work
+with `import type` (stripped at runtime). For values like `EventPriority`, use
+`api.EventPriority` instead of importing.
 
 ### Available Events
 
