@@ -203,6 +203,7 @@ export function createScriptAPI(meta: ScriptMeta, scriptDefaults: Record<string,
     irc,
     ui,
     config,
+    EventPriority,
 
     log(...args) {
       const appConfig = useStore.getState().config

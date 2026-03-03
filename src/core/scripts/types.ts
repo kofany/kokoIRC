@@ -123,6 +123,9 @@ export interface KokoAPI {
   ui: UiAccess
   config: ScriptConfigAccess
 
+  /** Event priority constants — use instead of importing EventPriority */
+  EventPriority: typeof EventPriority
+
   log(...args: any[]): void
 }
 

@@ -7,7 +7,6 @@
 //   keywords = ["urgent", "deploy"]
 
 import type { KokoAPI, IrcMessageEvent } from "@/core/scripts/types"
-import { EventPriority } from "@/core/scripts/types"
 
 export const meta = {
   name: "highlight-notify",
@@ -42,6 +41,6 @@ export default function init(api: KokoAPI) {
   }
 
   // LOW priority — don't interfere with filters
-  api.on("irc.privmsg", (data) => check(data), EventPriority.LOW)
-  api.on("irc.action", (data) => check(data), EventPriority.LOW)
+  api.on("irc.privmsg", (data) => check(data), api.EventPriority.LOW)
+  api.on("irc.action", (data) => check(data), api.EventPriority.LOW)
 }

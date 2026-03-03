@@ -8,7 +8,6 @@
 //   notify = true
 
 import type { KokoAPI, IrcMessageEvent } from "@/core/scripts/types"
-import { EventPriority } from "@/core/scripts/types"
 
 export const meta = {
   name: "spam-filter",
@@ -62,7 +61,7 @@ export default function init(api: KokoAPI) {
       }
       api.log(`blocked ${event.nick} in ${event.target}: ${event.message}`)
     }
-  }, EventPriority.HIGHEST)
+  }, api.EventPriority.HIGHEST)
 
   // Clean up stale entries periodically
   const cleanupTimer = api.timer(60_000, () => {
