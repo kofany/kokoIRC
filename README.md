@@ -2,19 +2,13 @@
 
 A modern terminal IRC client built with [OpenTUI](https://github.com/anomalyco/opentui), React, and Bun. Inspired by irssi, designed for the future.
 
-```
-┌─ Buffers ─┬─────────────────────────────────────────┬─ Users ──┐
-│ IRCnet    │ 12:34:05 <kofany> hey everyone           │ @kofany  │
-│  #chat    │ 12:34:08 <alice> welcome back!           │ +alice   │
-│  #dev     │ 12:34:12  * kofany waves                 │  bob     │
-│  #music   │ 12:34:15 <bob> what's new?               │  charlie │
-│           │                                          │          │
-│           ├──────────────────────────────────────────┤          │
-│           │ [IRCnet❱ /msg alice check this out       │          │
-│           ├──────────────────────────────────────────┤          │
-│           │ 12:34 | kofany(+i) | #chat(+nt) | lag:2 │          │
-└───────────┴──────────────────────────────────────────┴──────────┘
-```
+![Splash screen](docs/screenshots/splash.png)
+
+![Chat view with multiple networks](docs/screenshots/chat.png)
+
+![Help command list](docs/screenshots/help.png)
+
+![Configuration and settings](docs/screenshots/config.png)
 
 ## Features
 
@@ -35,17 +29,31 @@ A modern terminal IRC client built with [OpenTUI](https://github.com/anomalyco/o
 
 ## Install
 
+### From npm
+
+```bash
+# Global install (adds `kokoirc` to your PATH)
+bun install -g kokoirc
+
+# Then run from anywhere
+kokoirc
+```
+
+```bash
+# Local install (in a project)
+bun add kokoirc
+bunx kokoirc
+```
+
+### From source
+
 ```bash
 git clone https://github.com/kofany/kokoIRC.git
 cd kokoIRC
 bun install
-```
 
-## Usage
-
-```bash
 # Run directly
-bun run src/index.tsx
+bun run start
 
 # Or build a standalone binary
 bun run build
