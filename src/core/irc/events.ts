@@ -6,7 +6,7 @@ import { formatDuration, formatDate, buildModeString, buildPrefixMap, buildModeO
 import { handleNetsplitQuit, handleNetsplitJoin, destroyNetsplitState } from "./netsplit"
 import { shouldSuppressNickFlood, destroyAntifloodState } from "./antiflood"
 import { shouldIgnore } from "./ignore"
-import { eventBus } from "@/core/scripts"
+import { eventBus } from "@/core/scripts/event-bus"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")

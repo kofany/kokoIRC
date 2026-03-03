@@ -3,7 +3,8 @@ import { parseCommand } from "./parser"
 import type { ParsedCommand } from "./parser"
 import { commands, aliasMap, findByAlias } from "./registry"
 import { addLocalEvent } from "./helpers"
-import { eventBus, scriptCommands } from "@/core/scripts"
+import { eventBus } from "@/core/scripts/event-bus"
+import { scriptCommands } from "@/core/scripts/api"
 
 const MAX_ALIAS_DEPTH = 10
 

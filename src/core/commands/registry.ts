@@ -12,7 +12,7 @@ import {
   reloadScript,
   getLoadedScripts,
   getAvailableScripts,
-} from "@/core/scripts"
+} from "@/core/scripts/manager"
 import type { CommandDef } from "./types"
 import {
   addLocalEvent,
