@@ -57,4 +57,10 @@ export const DEFAULT_CONFIG: AppConfig = {
     autoload: [],
     debug: false,
   },
+  logging: {
+    enabled: true,
+    encrypt: false,
+    retention_days: 0,
+    exclude_types: [],
+  },
 }

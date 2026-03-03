@@ -1,3 +1,5 @@
+import type { MessageType } from "@/types"
+
 export type NickAlignment = 'left' | 'right' | 'center'
 
 export type StatusbarItem = 'active_windows' | 'nick_info' | 'channel_info' | 'lag' | 'time'
@@ -48,6 +50,13 @@ export interface IgnoreEntry {
   channels?: string[]     // restrict to specific channels (empty = all)
 }
 
+export interface LoggingConfig {
+  enabled: boolean
+  encrypt: boolean
+  retention_days: number
+  exclude_types: MessageType[]
+}
+
 export interface ScriptsConfig {
   autoload: string[]
   debug: boolean
@@ -63,6 +72,7 @@ export interface AppConfig {
   aliases: Record<string, string>
   ignores: IgnoreEntry[]
   scripts: ScriptsConfig
+  logging: LoggingConfig
 }
 
 export interface GeneralConfig {

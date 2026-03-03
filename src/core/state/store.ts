@@ -2,6 +2,7 @@ import { create } from "zustand"
 import type { Connection, Buffer, Message, NickEntry, ActivityLevel, ListEntry, ListModeKey } from "@/types"
 import type { AppConfig } from "@/types/config"
 import type { ThemeFile } from "@/types/theme"
+import { logMessage } from "@/core/storage"
 
 interface AppState {
   // Data
@@ -113,16 +114,26 @@ export const useStore = create<AppState>((set, get) => ({
     return { buffers }
   }),
 
-  addMessage: (bufferId, message) => set((s) => {
-    const buffers = new Map(s.buffers)
-    const buf = buffers.get(bufferId)
-    if (!buf) return s
-    const maxLines = s.config?.display.scrollback_lines ?? 2000
-    const messages = [...buf.messages, message]
-    if (messages.length > maxLines) messages.splice(0, messages.length - maxLines)
-    buffers.set(bufferId, { ...buf, messages })
-    return { buffers }
-  }),
+  addMessage: (bufferId, message) => {
+    // Log to persistent storage (fire-and-forget, outside Zustand set)
+    const slashIdx = bufferId.indexOf("/")
+    if (slashIdx > 0) {
+      const network = bufferId.slice(0, slashIdx)
+      const buffer = bufferId.slice(slashIdx + 1)
+      logMessage(network, buffer, message.type, message.text, message.nick ?? null, message.highlight, message.timestamp)
+    }
+
+    return set((s) => {
+      const buffers = new Map(s.buffers)
+      const buf = buffers.get(bufferId)
+      if (!buf) return s
+      const maxLines = s.config?.display.scrollback_lines ?? 2000
+      const messages = [...buf.messages, message]
+      if (messages.length > maxLines) messages.splice(0, messages.length - maxLines)
+      buffers.set(bufferId, { ...buf, messages })
+      return { buffers }
+    })
+  },
 
   addNick: (bufferId, entry) => set((s) => {
     const buffers = new Map(s.buffers)

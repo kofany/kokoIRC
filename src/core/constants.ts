@@ -14,5 +14,7 @@ export const ENV_PATH = join(HOME_DIR, ".env")
 
 export const SCRIPTS_DIR = join(HOME_DIR, "scripts")
 
+export const LOG_DB_PATH = join(HOME_DIR, "logs.db")
+
 // Default assets bundled with the package
 export const DEFAULT_THEMES_DIR = join(PKG_DIR, "themes")

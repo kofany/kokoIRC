@@ -5,7 +5,7 @@ import { loadTheme } from "@/core/theme/loader"
 import { BufferType, makeBufferId, ActivityLevel } from "@/types"
 import { DEFAULT_ITEM_FORMATS, ALL_IGNORE_LEVELS, type ServerConfig, type StatusbarItem, type IgnoreLevel, type IgnoreEntry } from "@/types/config"
 import { DEFAULT_CONFIG } from "@/core/config/defaults"
-import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
+import { CONFIG_PATH, THEME_PATH, LOG_DB_PATH } from "@/core/constants"
 import {
   loadScript,
   unloadScript,
@@ -25,6 +25,7 @@ import {
   listAllSettings,
 } from "./helpers"
 import { showCommandList, showCommandHelp, showSubcommandHelp } from "./help-formatter"
+import { searchMessages, getStats, isStorageActive } from "@/core/storage"
 
 // ─── List mode command factory ────────────────────────────────
 
@@ -1266,6 +1267,80 @@ export const commands: Record<string, CommandDef> = {
     },
     description: "Manage scripts (load/unload/reload/list)",
     usage: "/script [list|available|load|unload|reload] [name]",
+  },
+
+  log: {
+    async handler(args, connId) {
+      const sub = args[0]?.toLowerCase()
+
+      if (!sub || sub === "status") {
+        if (!isStorageActive()) {
+          addLocalEvent(`%Z565f89Logging is disabled%N`)
+          return
+        }
+        const stats = getStats()
+        if (!stats) {
+          addLocalEvent(`%Zf7768eDatabase not available%N`)
+          return
+        }
+        const sizeKB = (stats.dbSizeBytes / 1024).toFixed(1)
+        const sizeMB = (stats.dbSizeBytes / (1024 * 1024)).toFixed(1)
+        const sizeStr = stats.dbSizeBytes > 1024 * 1024 ? `${sizeMB} MB` : `${sizeKB} KB`
+        const config = useStore.getState().config
+        const encrypted = config?.logging.encrypt ? "%Ze0af68encrypted%N" : "%Z9ece6aplain text%N"
+
+        addLocalEvent(`%Z7aa2f7───── Log Status ─────────────────────────%N`)
+        addLocalEvent(`  Messages: %Zc0caf5${stats.messageCount.toLocaleString()}%N`)
+        addLocalEvent(`  Database: %Zc0caf5${sizeStr}%N`)
+        addLocalEvent(`  Mode:     ${encrypted}`)
+        addLocalEvent(`  Path:     %Z565f89${LOG_DB_PATH}%N`)
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
+        return
+      }
+
+      if (sub === "search") {
+        const query = args.slice(1).join(" ")
+        if (!query) {
+          addLocalEvent(`%Zf7768eUsage: /log search <query>%N`)
+          return
+        }
+        if (!isStorageActive()) {
+          addLocalEvent(`%Zf7768eLogging is disabled%N`)
+          return
+        }
+        const config = useStore.getState().config
+        if (config?.logging.encrypt) {
+          addLocalEvent(`%Zf7768eSearch is not available in encrypted mode%N`)
+          return
+        }
+
+        const s = useStore.getState()
+        const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
+        const slashIdx = s.activeBufferId?.indexOf("/") ?? -1
+        const network = slashIdx > 0 ? s.activeBufferId!.slice(0, slashIdx) : undefined
+        const buffer = buf?.name?.toLowerCase()
+
+        const results = await searchMessages(query, network, buffer)
+        if (results.length === 0) {
+          addLocalEvent(`%Z565f89No results for "${query}"%N`)
+          return
+        }
+
+        addLocalEvent(`%Z7aa2f7───── Search: ${query} (${results.length} results) ────%N`)
+        for (const msg of results.slice(-20)) {
+          const time = new Date(msg.timestamp).toLocaleTimeString()
+          const nick = msg.nick ? `%Za9b1d6<${msg.nick}>%N ` : ""
+          addLocalEvent(`  %Z565f89${time}%N ${nick}${msg.text}`)
+        }
+        addLocalEvent(`%Z7aa2f7─────────────────────────────────────────────%N`)
+        return
+      }
+
+      addLocalEvent(`%Zf7768eUnknown subcommand: /log ${sub}%N`)
+      addLocalEvent(`%Z565f89Use: status, search%N`)
+    },
+    description: "Chat log management (search, status)",
+    usage: "/log [status|search] [query]",
   },
 
   disconnect: {

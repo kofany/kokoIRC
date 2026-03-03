@@ -8,6 +8,7 @@ import { CONFIG_PATH, THEME_PATH } from "@/core/constants"
 import { loadAllDocs } from "@/core/commands"
 import { initHomeDir } from "@/core/init"
 import { autoloadScripts } from "@/core/scripts/manager"
+import { initStorage, shutdownStorage } from "@/core/storage"
 import { BufferType, ActivityLevel, makeBufferId, getSortGroup } from "@/types"
 import { SplashScreen } from "@/ui/splash/SplashScreen"
 import { AppLayout } from "@/ui/layout/AppLayout"
@@ -32,7 +33,7 @@ export function App() {
 
   useKeyboard((key) => {
     if (key.name === "q" && key.ctrl) {
-      renderer.destroy()
+      shutdownStorage().finally(() => renderer.destroy())
       return
     }
 
@@ -110,7 +111,9 @@ export function App() {
 
   // Register shutdown handler so commands can close the app
   useEffect(() => {
-    useStore.getState().setShutdownHandler(() => renderer.destroy())
+    useStore.getState().setShutdownHandler(() => {
+      shutdownStorage().finally(() => renderer.destroy())
+    })
   }, [renderer])
 
   // Load config + theme during splash (but don't connect yet)
@@ -119,6 +122,9 @@ export function App() {
       await initHomeDir()
       const config = await loadConfig(CONFIG_PATH)
       setConfig(config)
+
+      // Initialize persistent log storage before any connections
+      await initStorage(config.logging)
 
       const themePath = THEME_PATH(config.general.theme)
       const theme = await loadTheme(themePath)

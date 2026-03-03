@@ -26,6 +26,10 @@ export function cloneConfig(config: AppConfig): AppConfig {
       ...config.scripts,
       autoload: [...config.scripts.autoload],
     },
+    logging: {
+      ...config.logging,
+      exclude_types: [...config.logging.exclude_types],
+    },
   }
 }
 
@@ -47,6 +51,7 @@ export function mergeWithDefaults(partial: Record<string, any>): AppConfig {
       ...DEFAULT_CONFIG.scripts,
       ...partial.scripts,
     },
+    logging: { ...DEFAULT_CONFIG.logging, ...partial.logging },
   }
 }
 
@@ -161,6 +166,16 @@ export async function saveConfig(configPath: string, config: AppConfig): Promise
       if (typeof val === "object" && val !== null) sc[key] = val
     }
     if (Object.keys(sc).length > 0) tomlObj.scripts = sc
+  }
+
+  // Logging config — only write non-default values
+  if (config.logging) {
+    const lg: Record<string, any> = {}
+    if (!config.logging.enabled) lg.enabled = false  // only write if disabled (default is true)
+    if (config.logging.encrypt) lg.encrypt = true
+    if (config.logging.retention_days > 0) lg.retention_days = config.logging.retention_days
+    if (config.logging.exclude_types.length > 0) lg.exclude_types = config.logging.exclude_types
+    if (Object.keys(lg).length > 0) tomlObj.logging = lg
   }
 
   const toml = stringifyTOML(tomlObj)
