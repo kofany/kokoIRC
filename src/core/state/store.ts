@@ -1,5 +1,6 @@
 import { create } from "zustand"
-import type { Connection, Buffer, Message, NickEntry, ActivityLevel, ListEntry, ListModeKey } from "@/types"
+import { BufferType, ActivityLevel, makeBufferId } from "@/types"
+import type { Connection, Buffer, Message, NickEntry, ListEntry, ListModeKey } from "@/types"
 import type { AppConfig } from "@/types/config"
 import type { ThemeFile } from "@/types/theme"
 
@@ -36,6 +37,7 @@ interface AppState {
   // Buffer actions
   addBuffer: (buffer: Buffer) => void
   removeBuffer: (id: string) => void
+  closeConnection: (connectionId: string) => void
   setActiveBuffer: (id: string) => void
   updateBufferActivity: (id: string, level: ActivityLevel) => void
 
@@ -190,11 +192,80 @@ export const useStore = create<AppState>((set, get) => ({
   removeBuffer: (id) => set((s) => {
     const buffers = new Map(s.buffers)
     buffers.delete(id)
+
+    // If no buffers left, recreate the default welcome state
+    if (buffers.size === 0) {
+      const defaultId = makeBufferId("_default", "Status")
+      buffers.set(defaultId, {
+        id: defaultId,
+        connectionId: "_default",
+        type: BufferType.Server,
+        name: "Status",
+        messages: [{
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          type: "event" as const,
+          text: "Welcome to kokoIRC. Type /connect to connect to a server.",
+          highlight: false,
+        }],
+        activity: ActivityLevel.None,
+        unreadCount: 0,
+        lastRead: new Date(),
+        users: new Map(),
+        listModes: new Map(),
+      })
+      return { buffers, activeBufferId: defaultId, previousActiveBufferId: null }
+    }
+
     if (s.activeBufferId !== id) return { buffers }
-    // Fall back to previous buffer if it still exists, otherwise null
+    // Fall back to previous buffer if it still exists, otherwise first available
     const fallback = s.previousActiveBufferId && buffers.has(s.previousActiveBufferId)
-      ? s.previousActiveBufferId : null
+      ? s.previousActiveBufferId : buffers.keys().next().value ?? null
     return { buffers, activeBufferId: fallback }
+  }),
+
+  closeConnection: (connectionId) => set((s) => {
+    const buffers = new Map(s.buffers)
+    const connections = new Map(s.connections)
+
+    // Remove all buffers for this connection
+    for (const [id, buf] of buffers) {
+      if (buf.connectionId === connectionId) buffers.delete(id)
+    }
+    // Remove the connection entry
+    connections.delete(connectionId)
+
+    // If no buffers left, recreate the default welcome state
+    if (buffers.size === 0) {
+      const defaultId = makeBufferId("_default", "Status")
+      buffers.set(defaultId, {
+        id: defaultId,
+        connectionId: "_default",
+        type: BufferType.Server,
+        name: "Status",
+        messages: [{
+          id: crypto.randomUUID(),
+          timestamp: new Date(),
+          type: "event" as const,
+          text: "Welcome to kokoIRC. Type /connect to connect to a server.",
+          highlight: false,
+        }],
+        activity: ActivityLevel.None,
+        unreadCount: 0,
+        lastRead: new Date(),
+        users: new Map(),
+        listModes: new Map(),
+      })
+      return { buffers, connections, activeBufferId: defaultId, previousActiveBufferId: null }
+    }
+
+    // If active buffer was removed, fall back
+    const needsFallback = !buffers.has(s.activeBufferId ?? "")
+    const fallback = needsFallback
+      ? (s.previousActiveBufferId && buffers.has(s.previousActiveBufferId)
+        ? s.previousActiveBufferId : buffers.keys().next().value ?? null)
+      : s.activeBufferId
+    return { buffers, connections, activeBufferId: fallback }
   }),
 
   setActiveBuffer: (id) => set((s) => {

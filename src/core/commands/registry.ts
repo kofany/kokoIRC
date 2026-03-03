@@ -295,7 +295,17 @@ export const commands: Record<string, CommandDef> = {
       } else if (buf.type === BufferType.Query) {
         s.removeBuffer(buf.id)
       } else if (buf.type === BufferType.Server) {
-        addLocalEvent(`%Ze0af68Cannot close server buffer%N`)
+        const conn = s.connections.get(buf.connectionId)
+        const isDefault = buf.connectionId === "_default"
+        const isDisconnected = !conn || conn.status === "disconnected" || conn.status === "error"
+
+        if (!isDefault && !isDisconnected) {
+          addLocalEvent(`%Ze0af68Cannot close server buffer while connected. /disconnect first%N`)
+          return
+        }
+
+        // Atomically remove all buffers + connection for this server
+        s.closeConnection(buf.connectionId)
       }
     },
     description: "Close current buffer",
