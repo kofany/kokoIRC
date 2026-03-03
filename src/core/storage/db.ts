@@ -7,6 +7,7 @@ let db: Database | null = null
 const SCHEMA = `
   CREATE TABLE IF NOT EXISTS messages (
     id        INTEGER PRIMARY KEY AUTOINCREMENT,
+    msg_id    TEXT,
     network   TEXT NOT NULL,
     buffer    TEXT NOT NULL,
     timestamp INTEGER NOT NULL,
@@ -19,6 +20,30 @@ const SCHEMA = `
 
   CREATE INDEX IF NOT EXISTS idx_messages_lookup ON messages(network, buffer, timestamp);
   CREATE INDEX IF NOT EXISTS idx_messages_time ON messages(timestamp);
+  CREATE INDEX IF NOT EXISTS idx_messages_msg_id ON messages(msg_id);
+
+  CREATE TABLE IF NOT EXISTS read_markers (
+    network    TEXT NOT NULL,
+    buffer     TEXT NOT NULL,
+    client     TEXT NOT NULL,
+    last_read  INTEGER NOT NULL,
+    PRIMARY KEY (network, buffer, client)
+  );
+`
+
+const MIGRATION_ADD_MSG_ID = `
+  ALTER TABLE messages ADD COLUMN msg_id TEXT;
+  CREATE INDEX IF NOT EXISTS idx_messages_msg_id ON messages(msg_id);
+`
+
+const MIGRATION_ADD_READ_MARKERS = `
+  CREATE TABLE IF NOT EXISTS read_markers (
+    network    TEXT NOT NULL,
+    buffer     TEXT NOT NULL,
+    client     TEXT NOT NULL,
+    last_read  INTEGER NOT NULL,
+    PRIMARY KEY (network, buffer, client)
+  );
 `
 
 const FTS_SCHEMA = `
@@ -34,6 +59,18 @@ export function openDatabase(config: LoggingConfig): Database {
   db.run("PRAGMA journal_mode=WAL")
   db.run("PRAGMA synchronous=NORMAL")
   db.exec(SCHEMA)
+
+  // Migrate existing databases: add msg_id column if missing
+  const cols = db.prepare("PRAGMA table_info(messages)").all() as { name: string }[]
+  if (!cols.some((c) => c.name === "msg_id")) {
+    db.exec(MIGRATION_ADD_MSG_ID)
+  }
+
+  // Migrate: add read_markers table if missing
+  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table' AND name='read_markers'").all()
+  if (tables.length === 0) {
+    db.exec(MIGRATION_ADD_READ_MARKERS)
+  }
 
   // FTS5 only in plain text mode (can't index encrypted text)
   if (!config.encrypt) {

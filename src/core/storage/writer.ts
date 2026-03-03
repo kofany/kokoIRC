@@ -1,5 +1,5 @@
 import type { Database } from "bun:sqlite"
-import type { LogRow, LoggingConfig } from "./types"
+import type { LogRow, LoggingConfig, MessageListener } from "./types"
 import { encrypt, loadOrCreateKey } from "./crypto"
 
 const BATCH_SIZE = 50
@@ -13,6 +13,7 @@ export class LogWriter {
   private config: LoggingConfig
   private cryptoKey: CryptoKey | null = null
   private hasFts: boolean
+  private listeners: MessageListener[] = []
 
   constructor(db: Database, config: LoggingConfig) {
     this.db = db
@@ -26,9 +27,22 @@ export class LogWriter {
     }
   }
 
+  /** Subscribe to new messages (for WebSocket real-time push). */
+  onMessage(listener: MessageListener): () => void {
+    this.listeners.push(listener)
+    return () => {
+      this.listeners = this.listeners.filter((l) => l !== listener)
+    }
+  }
+
   enqueue(row: LogRow): void {
     // Filter excluded message types
     if (this.config.exclude_types.includes(row.type)) return
+
+    // Notify listeners immediately (before batching delay)
+    for (const listener of this.listeners) {
+      try { listener(row) } catch {}
+    }
 
     this.queue.push(row)
 
@@ -57,7 +71,7 @@ export class LogWriter {
     const batch = this.queue.splice(0)
 
     const insert = this.db.prepare(
-      "INSERT INTO messages (network, buffer, timestamp, type, nick, text, highlight, iv) VALUES (?, ?, ?, ?, ?, ?, ?, ?)"
+      "INSERT INTO messages (msg_id, network, buffer, timestamp, type, nick, text, highlight, iv) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
     )
 
     // Prepare FTS insert if available
@@ -76,7 +90,7 @@ export class LogWriter {
           for (const row of batch) {
             const encrypted = await encrypt(row.text, this.cryptoKey)
             insert.run(
-              row.network, row.buffer, row.timestamp, row.type,
+              row.msg_id, row.network, row.buffer, row.timestamp, row.type,
               row.nick, encrypted.ciphertext, row.highlight, encrypted.iv,
             )
           }
@@ -90,7 +104,7 @@ export class LogWriter {
         const syncTransaction = this.db.transaction((rows: LogRow[]) => {
           for (const row of rows) {
             const result = insert.run(
-              row.network, row.buffer, row.timestamp, row.type,
+              row.msg_id, row.network, row.buffer, row.timestamp, row.type,
               row.nick, row.text, row.highlight, null,
             )
             if (insertFts && result.lastInsertRowid) {

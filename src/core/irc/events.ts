@@ -7,6 +7,8 @@ import { handleNetsplitQuit, handleNetsplitJoin, destroyNetsplitState } from "./
 import { shouldSuppressNickFlood, destroyAntifloodState } from "./antiflood"
 import { shouldIgnore } from "./ignore"
 import { eventBus } from "@/core/scripts/event-bus"
+import { parseCommand } from "@/core/commands/parser"
+import { executeCommand } from "@/core/commands/execution"
 
 function isChannelTarget(target: string): boolean {
   return target.startsWith("#") || target.startsWith("&") || target.startsWith("+") || target.startsWith("!")
@@ -53,15 +55,18 @@ export function bindEvents(client: Client, connectionId: string) {
     const s = getStore()
     s.updateConnection(connectionId, { status: "connected", nick: event.nick })
     statusMsg(`%Z9ece6aRegistered as %Zc0caf5${event.nick}%N`)
-    // Auto-join channels from config
     const config = s.config
-    if (config) {
-      const serverConfig = Object.entries(config.servers).find(([id]) => id === connectionId)?.[1]
-      if (serverConfig) {
-        for (const channel of serverConfig.channels) {
-          client.join(channel)
-        }
-      }
+    const serverConfig = config
+      ? Object.entries(config.servers).find(([id]) => id === connectionId)?.[1]
+      : undefined
+
+    // Execute autosendcmd before autojoin (erssi-style: ";"-separated, WAIT <ms> for delays)
+    if (serverConfig?.autosendcmd) {
+      runAutosendcmd(serverConfig.autosendcmd, connectionId, event.nick, () => {
+        autojoinChannels(client, serverConfig)
+      })
+    } else {
+      if (serverConfig) autojoinChannels(client, serverConfig)
     }
   })
 
@@ -1027,5 +1032,53 @@ function makeFormattedEvent(key: string, params: string[]): Message {
     eventParams: params,
     highlight: false,
   }
+}
+
+// ─── Autosendcmd ─────────────────────────────────────────
+
+/** Join channels from config, supporting "channel key" syntax. */
+function autojoinChannels(client: Client, serverConfig: import("@/types/config").ServerConfig) {
+  for (const entry of serverConfig.channels) {
+    const spaceIdx = entry.indexOf(" ")
+    if (spaceIdx === -1) {
+      client.join(entry)
+    } else {
+      client.join(entry.slice(0, spaceIdx), entry.slice(spaceIdx + 1))
+    }
+  }
+}
+
+/**
+ * Execute autosendcmd string (erssi-style: ";"-separated commands, WAIT <ms> for delays).
+ * Substitutes $N with current nick. Calls onDone() when all commands (including WAITs) complete.
+ */
+function runAutosendcmd(cmd: string, connectionId: string, nick: string, onDone: () => void) {
+  const parts = cmd.split(";").map((p) => p.trim()).filter(Boolean)
+  let i = 0
+
+  function next() {
+    while (i < parts.length) {
+      const part = parts[i++]
+      // Variable substitution ($N = nick)
+      const expanded = part.replace(/\$\{?N\}?/g, nick)
+
+      // WAIT <ms> — delay before next command
+      const waitMatch = expanded.match(/^WAIT\s+(\d+)$/i)
+      if (waitMatch) {
+        setTimeout(next, parseInt(waitMatch[1], 10))
+        return
+      }
+
+      // Treat as command: prepend / if missing, parse and execute
+      const line = expanded.startsWith("/") ? expanded : "/" + expanded
+      const parsed = parseCommand(line)
+      if (parsed) {
+        executeCommand(parsed, connectionId)
+      }
+    }
+    onDone()
+  }
+
+  next()
 }
 

@@ -1,11 +1,12 @@
 import type { MessageType } from "@/types"
-import type { LoggingConfig, LogRow } from "./types"
+import type { LoggingConfig, LogRow, MessageListener } from "./types"
 import { openDatabase, closeDatabase, purgeOldMessages } from "./db"
 import { setQueryConfig } from "./query"
 import { LogWriter } from "./writer"
 
-export type { LoggingConfig, LogRow, StoredMessage } from "./types"
+export type { LoggingConfig, LogRow, StoredMessage, ReadMarker, MessageListener } from "./types"
 export { getMessages, searchMessages, getBuffers, getStats } from "./query"
+export { updateReadMarker, getReadMarker, getReadMarkers, getUnreadCount } from "./query"
 
 let writer: LogWriter | null = null
 let loggingConfig: LoggingConfig | null = null
@@ -34,6 +35,7 @@ export async function initStorage(config: LoggingConfig): Promise<void> {
 export function logMessage(
   network: string,
   buffer: string,
+  msgId: string,
   type: MessageType,
   text: string,
   nick: string | null,
@@ -43,6 +45,7 @@ export function logMessage(
   if (!writer) return
 
   const row: LogRow = {
+    msg_id: msgId,
     network,
     buffer,
     timestamp: timestamp.getTime(),
@@ -53,6 +56,12 @@ export function logMessage(
   }
 
   writer.enqueue(row)
+}
+
+/** Subscribe to real-time message events (for WebSocket push). */
+export function onMessage(listener: MessageListener): () => void {
+  if (!writer) return () => {}
+  return writer.onMessage(listener)
 }
 
 /** Flush pending writes and close the database. Call on shutdown. */

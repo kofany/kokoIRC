@@ -6,7 +6,7 @@
 //   timeout = 300
 //   message = "Auto-away"
 
-import type { KokoAPI } from "@/core/scripts/types"
+import type { KokoAPI } from "kokoirc/api"
 
 export const meta = {
   name: "auto-away",

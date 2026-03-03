@@ -1,7 +1,7 @@
 // Slap — the classic /slap command
 // Copy to ~/.kokoirc/scripts/slap.ts
 
-import type { KokoAPI } from "@/core/scripts/types"
+import type { KokoAPI } from "kokoirc/api"
 
 export const meta = {
   name: "slap",

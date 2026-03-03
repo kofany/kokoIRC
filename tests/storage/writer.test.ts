@@ -3,8 +3,10 @@ import { Database } from "bun:sqlite"
 import { LogWriter } from "@/core/storage/writer"
 import type { LoggingConfig, LogRow } from "@/core/storage/types"
 
+let msgCounter = 0
 function makeRow(overrides: Partial<LogRow> = {}): LogRow {
   return {
+    msg_id: `test-${++msgCounter}`,
     network: "libera",
     buffer: "#test",
     timestamp: Date.now(),
@@ -22,6 +24,7 @@ function createTestDb(): Database {
   db.exec(`
     CREATE TABLE messages (
       id        INTEGER PRIMARY KEY AUTOINCREMENT,
+      msg_id    TEXT,
       network   TEXT NOT NULL,
       buffer    TEXT NOT NULL,
       timestamp INTEGER NOT NULL,
@@ -33,6 +36,13 @@ function createTestDb(): Database {
     );
     CREATE VIRTUAL TABLE messages_fts USING fts5(
       nick, text, content=messages, content_rowid=id
+    );
+    CREATE TABLE read_markers (
+      network    TEXT NOT NULL,
+      buffer     TEXT NOT NULL,
+      client     TEXT NOT NULL,
+      last_read  INTEGER NOT NULL,
+      PRIMARY KEY (network, buffer, client)
     );
   `)
   return db
@@ -50,6 +60,7 @@ describe("LogWriter", () => {
   let writer: LogWriter
 
   beforeEach(async () => {
+    msgCounter = 0
     db = createTestDb()
     writer = new LogWriter(db, plainConfig)
     await writer.init()
@@ -70,6 +81,14 @@ describe("LogWriter", () => {
     expect(rows[1].text).toBe("second message")
   })
 
+  test("stores msg_id (UUID)", async () => {
+    writer.enqueue(makeRow({ msg_id: "abc-123-def" }))
+    await writer.flush()
+
+    const stored = db.prepare("SELECT msg_id FROM messages WHERE id = 1").get() as any
+    expect(stored.msg_id).toBe("abc-123-def")
+  })
+
   test("flush populates FTS5 index", async () => {
     writer.enqueue(makeRow({ text: "searchable content here" }))
     await writer.flush()
@@ -88,6 +107,7 @@ describe("LogWriter", () => {
 
   test("stores all message fields correctly", async () => {
     const row = makeRow({
+      msg_id: "uuid-test-1",
       network: "ircnet",
       buffer: "#polska",
       timestamp: 1700000000000,
@@ -100,6 +120,7 @@ describe("LogWriter", () => {
     await writer.flush()
 
     const stored = db.prepare("SELECT * FROM messages WHERE id = 1").get() as any
+    expect(stored.msg_id).toBe("uuid-test-1")
     expect(stored.network).toBe("ircnet")
     expect(stored.buffer).toBe("#polska")
     expect(stored.timestamp).toBe(1700000000000)
@@ -132,14 +153,12 @@ describe("LogWriter", () => {
   })
 
   test("auto-flushes at batch size", async () => {
-    // Enqueue 50 messages (BATCH_SIZE)
     for (let i = 0; i < 50; i++) {
       writer.enqueue(makeRow({ text: `msg ${i}` }))
     }
 
-    // Give a small delay for the flush to complete
     await new Promise((r) => setTimeout(r, 50))
-    await writer.flush() // ensure any remaining are flushed
+    await writer.flush()
 
     const rows = db.prepare("SELECT COUNT(*) as count FROM messages").get() as any
     expect(rows.count).toBe(50)
@@ -170,5 +189,115 @@ describe("LogWriter", () => {
 
     const rows = db.prepare("SELECT COUNT(*) as count FROM messages").get() as any
     expect(rows.count).toBe(3)
+  })
+
+  test("onMessage listener fires on enqueue", async () => {
+    const received: LogRow[] = []
+    writer.onMessage((row) => received.push(row))
+
+    writer.enqueue(makeRow({ text: "live message" }))
+    expect(received).toHaveLength(1)
+    expect(received[0].text).toBe("live message")
+  })
+
+  test("onMessage unsubscribe works", async () => {
+    const received: LogRow[] = []
+    const unsub = writer.onMessage((row) => received.push(row))
+
+    writer.enqueue(makeRow({ text: "before unsub" }))
+    unsub()
+    writer.enqueue(makeRow({ text: "after unsub" }))
+
+    expect(received).toHaveLength(1)
+    expect(received[0].text).toBe("before unsub")
+  })
+
+  test("onMessage does not fire for excluded types", async () => {
+    const config: LoggingConfig = {
+      enabled: true,
+      encrypt: false,
+      retention_days: 0,
+      exclude_types: ["event"],
+    }
+    const filteredWriter = new LogWriter(db, config)
+    await filteredWriter.init()
+
+    const received: LogRow[] = []
+    filteredWriter.onMessage((row) => received.push(row))
+
+    filteredWriter.enqueue(makeRow({ type: "message", text: "chat" }))
+    filteredWriter.enqueue(makeRow({ type: "event", text: "joined" }))
+
+    expect(received).toHaveLength(1)
+    expect(received[0].text).toBe("chat")
+  })
+})
+
+describe("read_markers", () => {
+  let db: Database
+
+  beforeEach(() => {
+    db = createTestDb()
+  })
+
+  afterEach(() => {
+    db.close()
+  })
+
+  test("upsert read marker", () => {
+    db.run(
+      "INSERT INTO read_markers (network, buffer, client, last_read) VALUES (?, ?, ?, ?)",
+      ["libera", "#test", "tui", 1000],
+    )
+    // Update
+    db.run(
+      `INSERT INTO read_markers (network, buffer, client, last_read) VALUES (?, ?, ?, ?)
+       ON CONFLICT (network, buffer, client) DO UPDATE SET last_read = excluded.last_read`,
+      ["libera", "#test", "tui", 2000],
+    )
+
+    const row = db.prepare(
+      "SELECT last_read FROM read_markers WHERE network = ? AND buffer = ? AND client = ?"
+    ).get("libera", "#test", "tui") as any
+    expect(row.last_read).toBe(2000)
+  })
+
+  test("multiple clients per buffer", () => {
+    db.run(
+      "INSERT INTO read_markers (network, buffer, client, last_read) VALUES (?, ?, ?, ?)",
+      ["libera", "#test", "tui", 1000],
+    )
+    db.run(
+      "INSERT INTO read_markers (network, buffer, client, last_read) VALUES (?, ?, ?, ?)",
+      ["libera", "#test", "web-abc", 500],
+    )
+
+    const rows = db.prepare(
+      "SELECT * FROM read_markers WHERE network = ? AND buffer = ?"
+    ).all("libera", "#test") as any[]
+    expect(rows).toHaveLength(2)
+  })
+
+  test("unread count based on read marker", () => {
+    // Insert messages
+    for (let i = 0; i < 10; i++) {
+      db.run(
+        "INSERT INTO messages (msg_id, network, buffer, timestamp, type, nick, text, highlight) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+        [`msg-${i}`, "libera", "#test", 1000 + i * 100, "message", "kofany", `msg ${i}`, 0],
+      )
+    }
+
+    // Set read marker at timestamp 1500 (after msg 0-5, before msg 6-9)
+    db.run(
+      "INSERT INTO read_markers (network, buffer, client, last_read) VALUES (?, ?, ?, ?)",
+      ["libera", "#test", "tui", 1500],
+    )
+
+    // timestamps: 1000, 1100, 1200, 1300, 1400, 1500, 1600, 1700, 1800, 1900
+    // after 1500: 1600, 1700, 1800, 1900 = 4 unread
+    const row = db.prepare(
+      "SELECT COUNT(*) as count FROM messages WHERE network = ? AND buffer = ? AND timestamp > ?"
+    ).get("libera", "#test", 1500) as any
+    expect(row.count).toBe(4)
   })
 })

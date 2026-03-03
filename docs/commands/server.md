@@ -39,6 +39,12 @@ Add a new server to the configuration.
 - `-label=<name>` — Display name
 - `-password=<pass>` — Server password (saved to .env)
 - `-sasl=<user>:<pass>` — SASL auth (saved to .env)
+- `-autosendcmd=<cmds>` — Commands to run on connect, before autojoin (must be last flag)
+
+Autosendcmd uses erssi-style syntax: commands separated by `;`, with `WAIT <ms>`
+for delays. `$N` is replaced with your nick.
+
+    /server add libera irc.libera.chat:6697 -tls -autosendcmd=MSG NickServ identify pass; WAIT 2000; MODE $N +i
 
 ### remove
 

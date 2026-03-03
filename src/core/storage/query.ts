@@ -1,7 +1,7 @@
 import { getDatabase } from "./db"
 import { LOG_DB_PATH } from "@/core/constants"
 import { decrypt, loadOrCreateKey } from "./crypto"
-import type { StoredMessage, LoggingConfig } from "./types"
+import type { StoredMessage, LoggingConfig, ReadMarker } from "./types"
 
 let config: LoggingConfig | null = null
 
@@ -11,6 +11,7 @@ export function setQueryConfig(cfg: LoggingConfig): void {
 
 interface RawRow {
   id: number
+  msg_id: string | null
   network: string
   buffer: string
   timestamp: number
@@ -29,6 +30,7 @@ async function decryptRow(row: RawRow): Promise<StoredMessage> {
   }
   return {
     id: row.id,
+    msg_id: row.msg_id ?? "",
     network: row.network,
     buffer: row.buffer,
     timestamp: row.timestamp,
@@ -106,6 +108,7 @@ export async function searchMessages(
 
   return rows.map((row) => ({
     id: row.id,
+    msg_id: row.msg_id ?? "",
     network: row.network,
     buffer: row.buffer,
     timestamp: row.timestamp,
@@ -140,4 +143,62 @@ export function getStats(): { messageCount: number; dbSizeBytes: number } | null
     messageCount: row.count,
     dbSizeBytes: file.size,
   }
+}
+
+// ─── Read Markers ──────────────────────────────────────────────
+
+/** Update (upsert) a read marker for a client viewing a buffer. */
+export function updateReadMarker(network: string, buffer: string, client: string, timestamp: number): void {
+  const db = getDatabase()
+  if (!db) return
+
+  db.run(
+    `INSERT INTO read_markers (network, buffer, client, last_read)
+     VALUES (?, ?, ?, ?)
+     ON CONFLICT (network, buffer, client)
+     DO UPDATE SET last_read = excluded.last_read`,
+    [network, buffer, client, timestamp],
+  )
+}
+
+/** Get the read marker for a specific client on a buffer. */
+export function getReadMarker(network: string, buffer: string, client: string): number | null {
+  const db = getDatabase()
+  if (!db) return null
+
+  const row = db.prepare(
+    "SELECT last_read FROM read_markers WHERE network = ? AND buffer = ? AND client = ?"
+  ).get(network, buffer, client) as { last_read: number } | null
+
+  return row?.last_read ?? null
+}
+
+/** Get all read markers for a buffer (all clients). */
+export function getReadMarkers(network: string, buffer: string): ReadMarker[] {
+  const db = getDatabase()
+  if (!db) return []
+
+  return db.prepare(
+    "SELECT * FROM read_markers WHERE network = ? AND buffer = ?"
+  ).all(network, buffer) as ReadMarker[]
+}
+
+/** Count unread messages for a client on a buffer (messages after their last_read). */
+export function getUnreadCount(network: string, buffer: string, client: string): number {
+  const db = getDatabase()
+  if (!db) return 0
+
+  const marker = getReadMarker(network, buffer, client)
+  if (marker === null) {
+    // Never read — all messages are unread
+    const row = db.prepare(
+      "SELECT COUNT(*) as count FROM messages WHERE network = ? AND buffer = ?"
+    ).get(network, buffer) as { count: number }
+    return row.count
+  }
+
+  const row = db.prepare(
+    "SELECT COUNT(*) as count FROM messages WHERE network = ? AND buffer = ? AND timestamp > ?"
+  ).get(network, buffer, marker) as { count: number }
+  return row.count
 }

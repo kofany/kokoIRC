@@ -80,6 +80,22 @@ export async function loadConfig(configPath: string): Promise<AppConfig> {
   const text = await file.text()
   const parsed = parseTOML(text)
   const config = mergeWithDefaults(parsed)
+
+  // Load ~/.kokoirc/.env into process.env (Bun only auto-loads cwd/.env)
+  const envFile = Bun.file(ENV_PATH)
+  if (await envFile.exists()) {
+    const envText = await envFile.text()
+    for (const line of envText.split("\n")) {
+      const trimmed = line.trim()
+      if (!trimmed || trimmed.startsWith("#")) continue
+      const eqIdx = trimmed.indexOf("=")
+      if (eqIdx === -1) continue
+      const key = trimmed.slice(0, eqIdx).trim()
+      const value = trimmed.slice(eqIdx + 1).trim()
+      if (key) process.env[key] = value
+    }
+  }
+
   config.servers = loadCredentials(config.servers, process.env)
   return config
 }
@@ -104,6 +120,7 @@ function cleanServerForTOML(server: ServerConfig): Record<string, any> {
   if (server.auto_reconnect === false) obj.auto_reconnect = false
   if (server.reconnect_delay && server.reconnect_delay !== 30) obj.reconnect_delay = server.reconnect_delay
   if (server.reconnect_max_retries != null) obj.reconnect_max_retries = server.reconnect_max_retries
+  if (server.autosendcmd) obj.autosendcmd = server.autosendcmd
   // SASL and password stored in config only if NOT in .env — sasl_user kept, pass stripped
   if (server.sasl_user) obj.sasl_user = server.sasl_user
   // password and sasl_pass NOT saved to TOML — they go to .env

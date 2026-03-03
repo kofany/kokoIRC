@@ -6,7 +6,7 @@
 //   beep = true
 //   keywords = ["urgent", "deploy"]
 
-import type { KokoAPI, IrcMessageEvent } from "@/core/scripts/types"
+import type { KokoAPI, IrcMessageEvent } from "kokoirc/api"
 
 export const meta = {
   name: "highlight-notify",

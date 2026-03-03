@@ -4,7 +4,7 @@ import { DEFAULT_CONFIG } from "@/core/config/defaults"
 
 describe("config defaults", () => {
   test("DEFAULT_CONFIG has all required fields", () => {
-    expect(DEFAULT_CONFIG.general.nick).toBe("opentui")
+    expect(DEFAULT_CONFIG.general.nick).toBe("kokoIRC")
     expect(DEFAULT_CONFIG.display.nick_column_width).toBe(8)
     expect(DEFAULT_CONFIG.display.nick_alignment).toBe("right")
     expect(DEFAULT_CONFIG.sidepanel.left.width).toBe(20)
@@ -29,7 +29,7 @@ describe("mergeWithDefaults", () => {
     }
     const result = mergeWithDefaults(partial)
     expect(result.general.nick).toBe("kofany")
-    expect(result.general.username).toBe("opentui")
+    expect(result.general.username).toBe("kokoirc")
     expect(result.display.nick_column_width).toBe(8)
     expect(result.servers.ircnet.label).toBe("IRCnet")
   })

@@ -2,7 +2,7 @@ import { create } from "zustand"
 import type { Connection, Buffer, Message, NickEntry, ActivityLevel, ListEntry, ListModeKey } from "@/types"
 import type { AppConfig } from "@/types/config"
 import type { ThemeFile } from "@/types/theme"
-import { logMessage } from "@/core/storage"
+import { logMessage, updateReadMarker } from "@/core/storage"
 
 interface AppState {
   // Data
@@ -94,16 +94,26 @@ export const useStore = create<AppState>((set, get) => ({
     return { buffers, activeBufferId: fallback }
   }),
 
-  setActiveBuffer: (id) => set((s) => {
-    // Reset activity when switching to buffer
-    const buffers = new Map(s.buffers)
-    const buf = buffers.get(id)
-    if (buf) {
-      buffers.set(id, { ...buf, activity: 0, unreadCount: 0, lastRead: new Date() })
+  setActiveBuffer: (id) => {
+    // Persist read marker for TUI client
+    const slashIdx = id.indexOf("/")
+    if (slashIdx > 0) {
+      const network = id.slice(0, slashIdx)
+      const buffer = id.slice(slashIdx + 1)
+      updateReadMarker(network, buffer, "tui", Date.now())
     }
-    const previousActiveBufferId = s.activeBufferId !== id ? s.activeBufferId : s.previousActiveBufferId
-    return { activeBufferId: id, previousActiveBufferId, buffers }
-  }),
+
+    return set((s) => {
+      // Reset activity when switching to buffer
+      const buffers = new Map(s.buffers)
+      const buf = buffers.get(id)
+      if (buf) {
+        buffers.set(id, { ...buf, activity: 0, unreadCount: 0, lastRead: new Date() })
+      }
+      const previousActiveBufferId = s.activeBufferId !== id ? s.activeBufferId : s.previousActiveBufferId
+      return { activeBufferId: id, previousActiveBufferId, buffers }
+    })
+  },
 
   updateBufferActivity: (id, level) => set((s) => {
     const buffers = new Map(s.buffers)
@@ -120,7 +130,7 @@ export const useStore = create<AppState>((set, get) => ({
     if (slashIdx > 0) {
       const network = bufferId.slice(0, slashIdx)
       const buffer = bufferId.slice(slashIdx + 1)
-      logMessage(network, buffer, message.type, message.text, message.nick ?? null, message.highlight, message.timestamp)
+      logMessage(network, buffer, message.id, message.type, message.text, message.nick ?? null, message.highlight, message.timestamp)
     }
 
     return set((s) => {

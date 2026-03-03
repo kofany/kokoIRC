@@ -1,6 +1,6 @@
 {
-  "name": "kokoirc-client",
-  "version": "0.1.2",
+  "name": "kokoirc",
+  "version": "0.2.3",
   "description": "Terminal IRC client built with OpenTUI and React",
   "module": "src/index.tsx",
   "type": "module",

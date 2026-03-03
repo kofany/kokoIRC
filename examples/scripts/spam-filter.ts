@@ -7,7 +7,7 @@
 //   window = 10
 //   notify = true
 
-import type { KokoAPI, IrcMessageEvent } from "@/core/scripts/types"
+import type { KokoAPI, IrcMessageEvent } from "kokoirc/api"
 
 export const meta = {
   name: "spam-filter",

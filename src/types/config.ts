@@ -123,4 +123,5 @@ export interface ServerConfig {
   auto_reconnect?: boolean    // auto reconnect on disconnect (default: true)
   reconnect_delay?: number    // seconds between reconnect attempts (default: 30)
   reconnect_max_retries?: number // max reconnect attempts (default: 10)
+  autosendcmd?: string        // commands to run on connect, before autojoin (;-separated, WAIT <ms> for delays)
 }

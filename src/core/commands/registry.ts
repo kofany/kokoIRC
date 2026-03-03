@@ -411,7 +411,7 @@ export const commands: Record<string, CommandDef> = {
         const id = args[1]?.toLowerCase()
         const addrArg = args[2]
         if (!id || !addrArg) {
-          addLocalEvent(`%Zf7768eUsage: /server add <id> <address>[:<port>] [-tls] [-noauto] [-bind=<ip>] [-label=<name>] [-password=<pass>] [-sasl=<user>:<pass>]%N`)
+          addLocalEvent(`%Zf7768eUsage: /server add <id> <address>[:<port>] [-tls] [-noauto] [-bind=<ip>] [-label=<name>] [-password=<pass>] [-sasl=<user>:<pass>] [-autosendcmd=<cmds>]%N`)
           return
         }
 
@@ -435,6 +435,7 @@ export const commands: Record<string, CommandDef> = {
         let sasl_pass: string | undefined
         let label = id
         let tls_verify = true
+        let autosendcmd: string | undefined
 
         for (let i = 3; i < args.length; i++) {
           const a = args[i]
@@ -450,6 +451,11 @@ export const commands: Record<string, CommandDef> = {
             sasl_user = saslParts[0]
             sasl_pass = saslParts.slice(1).join(":")
           }
+          else if (a.startsWith("-autosendcmd=")) {
+            // Consumes rest of args since the value contains spaces
+            autosendcmd = [a.slice(13), ...args.slice(i + 1)].join(" ").replace(/^"|"$/g, "")
+            break
+          }
         }
 
         const serverConfig: ServerConfig = {
@@ -463,6 +469,7 @@ export const commands: Record<string, CommandDef> = {
           nick,
           bind_ip,
           sasl_user,
+          autosendcmd,
         }
 
         const s = useStore.getState()
@@ -1370,6 +1377,70 @@ export const commands: Record<string, CommandDef> = {
     },
     description: "Disconnect from a server",
     usage: "/disconnect [server-id] [message]",
+  },
+
+  quote: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || args.length === 0) {
+        addLocalEvent(`%Zf7768eUsage: /quote <raw command>%N`)
+        return
+      }
+      client.raw(args.join(" "))
+    },
+    aliases: ["raw"],
+    description: "Send a raw IRC command to the server",
+    usage: "/quote <raw command>",
+  },
+
+  stats: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client) return
+      client.raw("STATS" + (args.length ? " " + args.join(" ") : ""))
+    },
+    description: "Request server statistics",
+    usage: "/stats [type] [server]",
+  },
+
+  oper: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || args.length < 2) {
+        addLocalEvent(`%Zf7768eUsage: /oper <name> <password>%N`)
+        return
+      }
+      client.raw(`OPER ${args[0]} ${args[1]}`)
+    },
+    description: "Authenticate as an IRC operator",
+    usage: "/oper <name> <password>",
+  },
+
+  kill: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || args.length === 0) {
+        addLocalEvent(`%Zf7768eUsage: /kill <nick> [reason]%N`)
+        return
+      }
+      const reason = args.slice(1).join(" ") || args[0]
+      client.raw(`KILL ${args[0]} :${reason}`)
+    },
+    description: "Disconnect a user from the network (oper only)",
+    usage: "/kill <nick> [reason]",
+  },
+
+  wallops: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || args.length === 0) {
+        addLocalEvent(`%Zf7768eUsage: /wallops <message>%N`)
+        return
+      }
+      client.raw(`WALLOPS :${args.join(" ")}`)
+    },
+    description: "Send a message to all opers (oper only)",
+    usage: "/wallops <message>",
   },
 }
 
