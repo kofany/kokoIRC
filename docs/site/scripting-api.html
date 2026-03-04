@@ -1,0 +1,530 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>API Reference — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html" class="active">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Scripting — API Reference</h1>
+<p>Complete reference for the <code>KokoAPI</code> object passed to every script&#39;s <code>init</code> function.</p>
+<pre><code class="language-typescript">export default function init(api: KokoAPI) {
+  // api.on, api.irc, api.store, etc.
+}
+</code></pre>
+<hr>
+<h2>Events</h2>
+<h3><code>api.on(event, handler, priority?)</code></h3>
+<p>Register an event handler. Returns an unsubscribe function.</p>
+<pre><code class="language-typescript">const unsub = api.on(&quot;irc.privmsg&quot;, (event, ctx) =&gt; {
+  // handle message
+})
+
+// Later, to remove:
+unsub()
+</code></pre>
+<p><strong>Parameters:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Param</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>event</code></td>
+<td><code>string</code></td>
+<td>Event name (see event list below)</td>
+</tr>
+<tr>
+<td><code>handler</code></td>
+<td><code>(data: any, ctx: EventContext) =&gt; void</code></td>
+<td>Handler function</td>
+</tr>
+<tr>
+<td><code>priority</code></td>
+<td><code>number</code></td>
+<td>Optional. Default: <code>EventPriority.NORMAL</code> (50)</td>
+</tr>
+</tbody></table>
+<p>Handlers run in descending priority order. Handlers registered through the API are automatically removed when the script is unloaded.</p>
+<h3><code>api.once(event, handler, priority?)</code></h3>
+<p>Same as <code>api.on()</code> but the handler fires only once, then removes itself.</p>
+<h3><code>api.emit(event, data?)</code></h3>
+<p>Emit a custom event. The event name is automatically prefixed with <code>script.</code> to avoid collisions with built-in events. Returns <code>false</code> if a handler called <code>stop()</code>.</p>
+<pre><code class="language-typescript">api.emit(&quot;my-event&quot;, { foo: &quot;bar&quot; })
+// Other scripts can listen with: api.on(&quot;script.my-event&quot;, handler)
+</code></pre>
+<h3><code>api.EventPriority</code></h3>
+<p>Priority constants for event handler ordering:</p>
+<table>
+<thead>
+<tr>
+<th>Constant</th>
+<th>Value</th>
+<th>Use case</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>HIGHEST</code></td>
+<td>100</td>
+<td>Filters, spam blockers — run first</td>
+</tr>
+<tr>
+<td><code>HIGH</code></td>
+<td>75</td>
+<td>Pre-processing</td>
+</tr>
+<tr>
+<td><code>NORMAL</code></td>
+<td>50</td>
+<td>Default for most handlers</td>
+</tr>
+<tr>
+<td><code>LOW</code></td>
+<td>25</td>
+<td>Post-processing</td>
+</tr>
+<tr>
+<td><code>LOWEST</code></td>
+<td>0</td>
+<td>Logging, analytics — run last</td>
+</tr>
+</tbody></table>
+<h3>EventContext</h3>
+<p>The second argument to every event handler:</p>
+<pre><code class="language-typescript">api.on(&quot;irc.privmsg&quot;, (event, ctx) =&gt; {
+  ctx.stop()    // Prevent lower-priority handlers AND the built-in
+                // store update from running
+  ctx.stopped   // boolean — whether stop() has been called
+})
+</code></pre>
+<p><code>ctx.stop()</code> must be called <strong>synchronously</strong> (before any <code>await</code>). When a handler stops an event, the built-in kokoIRC handler that would normally update the store (add the message to the buffer, update nick lists, etc.) is skipped entirely.</p>
+<hr>
+<h2>IRC Events</h2>
+<p>These events fire when the IRC server sends data. Each event can be intercepted — if a handler calls <code>ctx.stop()</code>, the default store update is suppressed.</p>
+<h3><code>irc.privmsg</code></h3>
+<p>A channel or private message.</p>
+<pre><code class="language-typescript">interface IrcMessageEvent {
+  connectionId: string
+  nick: string
+  ident?: string
+  hostname?: string
+  target: string       // channel name or your nick (for PMs)
+  message: string      // raw message text
+  tags?: Record&lt;string, string&gt;
+  time?: string        // server-time tag
+  isChannel: boolean   // true if target is a channel
+}
+</code></pre>
+<h3><code>irc.action</code></h3>
+<p>A CTCP ACTION (<code>/me</code> message). Same payload as <code>irc.privmsg</code>.</p>
+<h3><code>irc.notice</code></h3>
+<pre><code class="language-typescript">interface IrcNoticeEvent {
+  connectionId: string
+  nick?: string        // undefined for server notices
+  target?: string
+  message: string
+  from_server?: boolean
+}
+</code></pre>
+<h3><code>irc.join</code></h3>
+<pre><code class="language-typescript">interface IrcJoinEvent {
+  connectionId: string
+  nick: string
+  ident?: string
+  hostname?: string
+  channel: string
+  account?: string     // IRCv3 account-notify
+}
+</code></pre>
+<h3><code>irc.part</code></h3>
+<pre><code class="language-typescript">interface IrcPartEvent {
+  connectionId: string
+  nick: string
+  ident?: string
+  hostname?: string
+  channel: string
+  message?: string     // part reason
+}
+</code></pre>
+<h3><code>irc.quit</code></h3>
+<pre><code class="language-typescript">interface IrcQuitEvent {
+  connectionId: string
+  nick: string
+  ident?: string
+  hostname?: string
+  message?: string     // quit reason
+}
+</code></pre>
+<h3><code>irc.kick</code></h3>
+<pre><code class="language-typescript">interface IrcKickEvent {
+  connectionId: string
+  nick: string         // who kicked
+  ident?: string
+  hostname?: string
+  channel: string
+  kicked: string       // who was kicked
+  message?: string     // kick reason
+}
+</code></pre>
+<h3><code>irc.nick</code></h3>
+<pre><code class="language-typescript">interface IrcNickEvent {
+  connectionId: string
+  nick: string         // old nick
+  new_nick: string     // new nick
+  ident?: string
+  hostname?: string
+}
+</code></pre>
+<h3><code>irc.topic</code></h3>
+<pre><code class="language-typescript">interface IrcTopicEvent {
+  connectionId: string
+  nick?: string        // who changed it (undefined for initial topic)
+  channel: string
+  topic: string
+}
+</code></pre>
+<h3><code>irc.mode</code></h3>
+<pre><code class="language-typescript">interface IrcModeEvent {
+  connectionId: string
+  nick?: string        // who set the mode
+  target: string       // channel or nick
+  modes: Array&lt;{ mode: string; param?: string }&gt;
+}
+</code></pre>
+<h3><code>irc.invite</code></h3>
+<pre><code class="language-typescript">interface IrcInviteEvent {
+  connectionId: string
+  nick: string         // who invited you
+  channel: string
+}
+</code></pre>
+<h3><code>irc.ctcp_request</code></h3>
+<pre><code class="language-typescript">interface IrcCtcpEvent {
+  connectionId: string
+  nick: string
+  type: string         // e.g. &quot;PING&quot;, &quot;TIME&quot;
+  message?: string
+}
+</code></pre>
+<h3><code>irc.ctcp_response</code></h3>
+<p>Same shape as <code>irc.ctcp_request</code>.</p>
+<h3><code>irc.wallops</code></h3>
+<pre><code class="language-typescript">interface IrcWallopsEvent {
+  connectionId: string
+  nick?: string
+  message: string
+  from_server?: boolean
+}
+</code></pre>
+<hr>
+<h2>App Events</h2>
+<p>These events are emitted by kokoIRC itself, not the IRC protocol.</p>
+<h3><code>command_input</code></h3>
+<p>Fired before a command is executed. Call <code>ctx.stop()</code> to prevent the command from running.</p>
+<pre><code class="language-typescript">interface CommandInputEvent {
+  command: string      // command name without &quot;/&quot;
+  args: string[]
+  connectionId: string
+}
+</code></pre>
+<h3><code>connected</code></h3>
+<pre><code class="language-typescript">interface ConnectedEvent {
+  connectionId: string
+  nick: string
+}
+</code></pre>
+<h3><code>disconnected</code></h3>
+<pre><code class="language-typescript">interface DisconnectedEvent {
+  connectionId: string
+}
+</code></pre>
+<hr>
+<h2>Commands</h2>
+<h3><code>api.command(name, def)</code></h3>
+<p>Register a custom slash command. The command is available as <code>/name</code> in the input bar.</p>
+<pre><code class="language-typescript">api.command(&quot;greet&quot;, {
+  handler: (args, connectionId) =&gt; {
+    const target = args[0] ?? &quot;world&quot;
+    api.irc.say(target, `Hello, ${target}!`, connectionId)
+  },
+  description: &quot;Send a greeting&quot;,
+  usage: &quot;/greet &lt;nick&gt;&quot;,
+})
+</code></pre>
+<p><strong><code>ScriptCommandDef</code>:</strong></p>
+<table>
+<thead>
+<tr>
+<th>Field</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>handler</code></td>
+<td><code>(args: string[], connectionId: string) =&gt; void</code></td>
+<td>Command handler</td>
+</tr>
+<tr>
+<td><code>description</code></td>
+<td><code>string</code></td>
+<td>Shown in <code>/help</code></td>
+</tr>
+<tr>
+<td><code>usage</code></td>
+<td><code>string?</code></td>
+<td>Usage string (optional)</td>
+</tr>
+</tbody></table>
+<h3><code>api.removeCommand(name)</code></h3>
+<p>Remove a command registered by this script.</p>
+<hr>
+<h2>IRC Methods</h2>
+<p>All IRC methods take an optional <code>connectionId</code> as the <strong>last</strong> parameter. If omitted, the active buffer&#39;s connection is used.</p>
+<h3><code>api.irc.say(target, message, connectionId?)</code></h3>
+<p>Send a PRIVMSG to a channel or nick.</p>
+<h3><code>api.irc.action(target, message, connectionId?)</code></h3>
+<p>Send a CTCP ACTION (<code>/me</code>).</p>
+<h3><code>api.irc.notice(target, message, connectionId?)</code></h3>
+<p>Send a NOTICE.</p>
+<h3><code>api.irc.join(channel, key?, connectionId?)</code></h3>
+<p>Join a channel, optionally with a key.</p>
+<h3><code>api.irc.part(channel, message?, connectionId?)</code></h3>
+<p>Leave a channel with an optional part message.</p>
+<h3><code>api.irc.raw(line, connectionId?)</code></h3>
+<p>Send a raw IRC protocol line.</p>
+<pre><code class="language-typescript">api.irc.raw(&quot;AWAY :Gone fishing&quot;)
+api.irc.raw(&quot;AWAY :Gone fishing&quot;, &quot;myserver&quot;)
+</code></pre>
+<h3><code>api.irc.changeNick(nick, connectionId?)</code></h3>
+<p>Change your nickname.</p>
+<h3><code>api.irc.whois(nick, connectionId?)</code></h3>
+<p>Send a WHOIS query.</p>
+<h3><code>api.irc.getClient(connectionId?)</code></h3>
+<p>Get the underlying IRC framework <code>Client</code> object for advanced use. Returns <code>undefined</code> if the connection doesn&#39;t exist.</p>
+<hr>
+<h2>UI Methods</h2>
+<h3><code>api.ui.addLocalEvent(text)</code></h3>
+<p>Add a local event message to the <strong>active</strong> buffer. These are informational messages visible only to the user (not sent over IRC).</p>
+<pre><code class="language-typescript">api.ui.addLocalEvent(&quot;Script loaded successfully&quot;)
+</code></pre>
+<h3><code>api.ui.addMessage(bufferId, message)</code></h3>
+<p>Add a message to a specific buffer. The <code>id</code> and <code>timestamp</code> fields are set automatically.</p>
+<pre><code class="language-typescript">api.ui.addMessage(bufferId, {
+  type: &quot;event&quot;,
+  text: &quot;Something happened&quot;,
+  highlight: false,
+})
+</code></pre>
+<h3><code>api.ui.switchBuffer(bufferId)</code></h3>
+<p>Switch the active buffer.</p>
+<h3><code>api.ui.makeBufferId(connectionId, name)</code></h3>
+<p>Generate a buffer ID from a connection ID and buffer name (channel or nick).</p>
+<pre><code class="language-typescript">const bufId = api.ui.makeBufferId(&quot;myserver&quot;, &quot;#channel&quot;)
+api.ui.switchBuffer(bufId)
+</code></pre>
+<hr>
+<h2>Store</h2>
+<h3><code>api.store</code></h3>
+<p>Read-only access to the Zustand store. Available methods:</p>
+<table>
+<thead>
+<tr>
+<th>Method</th>
+<th>Returns</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>getConnections()</code></td>
+<td><code>Map&lt;string, Connection&gt;</code></td>
+</tr>
+<tr>
+<td><code>getBuffers()</code></td>
+<td><code>Map&lt;string, Buffer&gt;</code></td>
+</tr>
+<tr>
+<td><code>getActiveBufferId()</code></td>
+<td><code>string | null</code></td>
+</tr>
+<tr>
+<td><code>getConfig()</code></td>
+<td><code>AppConfig | null</code></td>
+</tr>
+<tr>
+<td><code>getConnection(id)</code></td>
+<td><code>Connection | undefined</code></td>
+</tr>
+<tr>
+<td><code>getBuffer(id)</code></td>
+<td><code>Buffer | undefined</code></td>
+</tr>
+<tr>
+<td><code>subscribe(listener)</code></td>
+<td><code>() =&gt; void</code> (unsubscribe)</td>
+</tr>
+</tbody></table>
+<pre><code class="language-typescript">const conns = api.store.getConnections()
+for (const [id, conn] of conns) {
+  api.log(`Connected to ${conn.host} as ${conn.nick}`)
+}
+</code></pre>
+<hr>
+<h2>Config</h2>
+<h3><code>api.config.get(key, defaultValue)</code></h3>
+<p>Get a per-script config value. Lookup order: user TOML override &gt; script <code>config</code> export &gt; <code>defaultValue</code>.</p>
+<h3><code>api.config.set(key, value)</code></h3>
+<p>Set a per-script config value at runtime. This updates the in-memory config (not the TOML file).</p>
+<hr>
+<h2>Timers</h2>
+<h3><code>api.timer(ms, handler)</code></h3>
+<p>Set a repeating interval. Returns a <code>TimerHandle</code> with a <code>clear()</code> method. Automatically cleared on script unload.</p>
+<pre><code class="language-typescript">const ping = api.timer(60_000, () =&gt; {
+  api.log(&quot;One minute has passed&quot;)
+})
+
+// Later:
+ping.clear()
+</code></pre>
+<h3><code>api.timeout(ms, handler)</code></h3>
+<p>Set a one-shot timeout. Returns a <code>TimerHandle</code>. Automatically cleared on script unload.</p>
+<hr>
+<h2>Logging</h2>
+<h3><code>api.log(...args)</code></h3>
+<p>Log a message to the console. Only outputs when <code>scripts.debug = true</code> in <code>config.toml</code>. Messages are prefixed with <code>[script:&lt;name&gt;]</code>.</p>
+<pre><code class="language-toml">[scripts]
+debug = true
+</code></pre>
+<pre><code class="language-typescript">api.log(&quot;Processing message from&quot;, event.nick)
+// Console: [script:my-script] Processing message from Alice
+</code></pre>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="scripting-getting-started.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">Getting Started</span>
+</a>
+          <a href="scripting-examples.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">Examples</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,236 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Getting Started — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html" class="active">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Scripting — Getting Started</h1>
+<p>kokoIRC supports TypeScript scripts loaded from <code>~/.kokoirc/scripts/</code>. Scripts can register custom commands, listen to IRC events, send messages, and interact with the store.</p>
+<h2>Script structure</h2>
+<p>Scripts export a default <code>init</code> function that receives the <code>KokoAPI</code> object. Optionally export <code>meta</code> (name, version, description) and <code>config</code> (default values for per-script configuration):</p>
+<pre><code class="language-typescript">import type { KokoAPI } from &quot;kokoirc/api&quot;
+
+export const meta = {
+  name: &quot;my-script&quot;,
+  version: &quot;1.0.0&quot;,
+  description: &quot;My first script&quot;,
+}
+
+export const config = {
+  timeout: 300,
+}
+
+export default function init(api: KokoAPI) {
+  // Your script logic here
+
+  return () =&gt; {
+    // cleanup on unload (optional)
+  }
+}
+</code></pre>
+<p>The <code>meta.name</code> is used as the script identifier. If omitted, the filename is used instead.</p>
+<p>The returned cleanup function is called when the script is unloaded or reloaded. Use it to clean up any resources your script created outside of the API (e.g. external connections). Event handlers, commands, and timers registered through the API are cleaned up automatically.</p>
+<h2>Import rules</h2>
+<p>Scripts live outside the project tree (<code>~/.kokoirc/scripts/</code>), so the <code>@/</code> path alias that works inside the kokoIRC codebase is <strong>not available at runtime</strong>.</p>
+<ul>
+<li><strong><code>import type</code></strong> — Works with <code>@/</code> paths because type imports are stripped at compile time:<pre><code class="language-typescript">import type { KokoAPI, IrcMessageEvent } from &quot;kokoirc/api&quot;  // OK
+</code></pre>
+</li>
+<li><strong>Runtime values</strong> — Use the <code>api</code> object instead of importing. For example, use <code>api.EventPriority</code> instead of importing <code>EventPriority</code> directly:<pre><code class="language-typescript">// WRONG — will fail at runtime
+import { EventPriority } from &quot;kokoirc/api&quot;
+
+// CORRECT — use the api object
+api.on(&quot;irc.privmsg&quot;, handler, api.EventPriority.HIGH)
+</code></pre>
+</li>
+</ul>
+<h2>Loading scripts</h2>
+<p>Manage scripts at runtime with the <code>/script</code> command:</p>
+<table>
+<thead>
+<tr>
+<th>Command</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>/script load &lt;name&gt;</code></td>
+<td>Load a script from <code>~/.kokoirc/scripts/&lt;name&gt;.ts</code></td>
+</tr>
+<tr>
+<td><code>/script unload &lt;name&gt;</code></td>
+<td>Unload a running script</td>
+</tr>
+<tr>
+<td><code>/script reload &lt;name&gt;</code></td>
+<td>Unload and re-import a script (cache-busted)</td>
+</tr>
+<tr>
+<td><code>/script list</code></td>
+<td>Show all loaded scripts</td>
+</tr>
+<tr>
+<td><code>/script available</code></td>
+<td>List <code>.ts</code> files in the scripts directory</td>
+</tr>
+</tbody></table>
+<h2>Autoloading</h2>
+<p>Configure scripts to load automatically on startup in <code>config.toml</code>:</p>
+<pre><code class="language-toml">[scripts]
+autoload = [&quot;slap&quot;, &quot;auto-away&quot;]
+</code></pre>
+<p>Enable debug logging for script load/unload events:</p>
+<pre><code class="language-toml">[scripts]
+autoload = [&quot;slap&quot;, &quot;auto-away&quot;]
+debug = true
+</code></pre>
+<h2>Per-script configuration</h2>
+<p>Declare default values by exporting a <code>config</code> object from your script:</p>
+<pre><code class="language-typescript">export const config = {
+  timeout: 300,
+  message: &quot;AFK&quot;,
+}
+</code></pre>
+<p>Users override these defaults in their <code>config.toml</code> under <code>[scripts.&lt;name&gt;]</code>:</p>
+<pre><code class="language-toml">[scripts.auto-away]
+timeout = 600
+message = &quot;Gone fishing&quot;
+</code></pre>
+<p>Access config values in your script with <code>api.config.get()</code>:</p>
+<pre><code class="language-typescript">const timeout = api.config.get(&quot;timeout&quot;, 300)
+const message = api.config.get(&quot;message&quot;, &quot;AFK&quot;)
+</code></pre>
+<p>The lookup order is: user TOML override &gt; script <code>config</code> export &gt; <code>defaultValue</code> argument.</p>
+<p>You can also write config values at runtime with <code>api.config.set()</code>:</p>
+<pre><code class="language-typescript">api.config.set(&quot;lastSeen&quot;, Date.now())
+</code></pre>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="commands.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">Commands</span>
+</a>
+          <a href="scripting-api.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">API Reference</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

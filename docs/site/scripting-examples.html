@@ -1,0 +1,332 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Examples — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html" class="active">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Scripting — Examples</h1>
+<p>Practical script examples showing common patterns: custom commands, event listeners, timers, and event filtering.</p>
+<hr>
+<h2>Custom /slap command</h2>
+<p>The classic IRC <code>/slap</code> command, implemented as a script.</p>
+<pre><code class="language-typescript">import type { KokoAPI } from &quot;kokoirc/api&quot;
+
+export const meta = {
+  name: &quot;slap&quot;,
+  version: &quot;1.0.0&quot;,
+  description: &quot;The classic /slap command&quot;,
+}
+
+export default function slap(api: KokoAPI) {
+  api.command(&quot;slap&quot;, {
+    handler: (args, connectionId) =&gt; {
+      const target = args[0] ?? &quot;everyone&quot;
+      const bufId = api.store.getActiveBufferId()
+      if (!bufId) return
+      const buf = api.store.getBuffer(bufId)
+      if (!buf) return
+      api.irc.action(buf.name,
+        `slaps ${target} around a bit with a large trout`,
+        connectionId)
+    },
+    description: &quot;Slap someone with a large trout&quot;,
+    usage: &quot;/slap [nick]&quot;,
+  })
+}
+</code></pre>
+<hr>
+<h2>Auto-away</h2>
+<p>Automatically sets you as away after a period of inactivity. Demonstrates event listeners, timers, and per-script configuration.</p>
+<pre><code class="language-typescript">import type { KokoAPI } from &quot;kokoirc/api&quot;
+
+export const meta = {
+  name: &quot;auto-away&quot;,
+  version: &quot;1.0.0&quot;,
+  description: &quot;Auto-away on idle&quot;,
+}
+
+export const config = {
+  timeout: 300,
+  message: &quot;Auto-away&quot;,
+}
+
+export default function autoAway(api: KokoAPI) {
+  const timeout = api.config.get(&quot;timeout&quot;, 300)
+  const message = api.config.get(&quot;message&quot;, &quot;Auto-away&quot;)
+
+  let timer: ReturnType&lt;typeof setTimeout&gt; | null = null
+
+  function resetTimer() {
+    if (timer) clearTimeout(timer)
+    timer = setTimeout(() =&gt; {
+      // Send AWAY to all connections
+      for (const [id] of api.store.getConnections()) {
+        api.irc.raw(`AWAY :${message}`, id)
+      }
+    }, timeout * 1000)
+  }
+
+  // Reset the timer on any user input
+  api.on(&quot;command_input&quot;, resetTimer)
+  resetTimer()
+
+  // Clean up the timer on unload
+  return () =&gt; {
+    if (timer) clearTimeout(timer)
+  }
+}
+</code></pre>
+<p><strong>User configuration</strong> in <code>config.toml</code>:</p>
+<pre><code class="language-toml">[scripts.auto-away]
+timeout = 600
+message = &quot;Gone fishing&quot;
+</code></pre>
+<hr>
+<h2>Highlight notifications</h2>
+<p>Adds a local notification when your nick is mentioned. Shows how to listen to IRC message events and use the UI API.</p>
+<pre><code class="language-typescript">import type { KokoAPI, IrcMessageEvent } from &quot;kokoirc/api&quot;
+
+export const meta = {
+  name: &quot;highlight-notify&quot;,
+  version: &quot;1.0.0&quot;,
+  description: &quot;Notify on highlights&quot;,
+}
+
+export default function highlights(api: KokoAPI) {
+  api.on(&quot;irc.privmsg&quot;, (event: IrcMessageEvent) =&gt; {
+    // Check if our nick is mentioned in the message
+    const conns = api.store.getConnections()
+    const conn = conns.get(event.connectionId)
+    if (!conn) return
+
+    const nickPattern = new RegExp(`\\b${conn.nick}\\b`, &quot;i&quot;)
+    if (event.isChannel &amp;&amp; nickPattern.test(event.message)) {
+      const bufId = api.ui.makeBufferId(event.connectionId, event.target)
+      api.ui.addMessage(bufId, {
+        type: &quot;event&quot;,
+        text: `*** Highlight from ${event.nick}: ${event.message}`,
+        highlight: true,
+      })
+    }
+  })
+}
+</code></pre>
+<hr>
+<h2>Spam filter</h2>
+<p>Blocks messages matching configurable patterns. Demonstrates <code>ctx.stop()</code> to prevent messages from reaching the UI, and <code>api.EventPriority.HIGHEST</code> to run before all other handlers.</p>
+<pre><code class="language-typescript">import type { KokoAPI, IrcMessageEvent } from &quot;kokoirc/api&quot;
+
+export const meta = {
+  name: &quot;spam-filter&quot;,
+  version: &quot;1.0.0&quot;,
+  description: &quot;Filter spam messages&quot;,
+}
+
+export const config = {
+  patterns: [&quot;buy now&quot;, &quot;free bitcoin&quot;],
+}
+
+export default function spamFilter(api: KokoAPI) {
+  const patterns = api.config
+    .get(&quot;patterns&quot;, [&quot;buy now&quot;, &quot;free bitcoin&quot;])
+    .map((p: string) =&gt; new RegExp(p, &quot;i&quot;))
+
+  api.on(
+    &quot;irc.privmsg&quot;,
+    (event: IrcMessageEvent, ctx) =&gt; {
+      if (patterns.some((p) =&gt; p.test(event.message))) {
+        ctx.stop() // Prevents the message from reaching the UI
+        api.log(`Blocked spam from ${event.nick}: ${event.message}`)
+      }
+    },
+    api.EventPriority.HIGHEST, // Run before everything else
+  )
+}
+</code></pre>
+<p><strong>User configuration</strong> in <code>config.toml</code>:</p>
+<pre><code class="language-toml">[scripts.spam-filter]
+patterns = [&quot;buy now&quot;, &quot;free bitcoin&quot;, &quot;check out my&quot;]
+</code></pre>
+<hr>
+<h2>URL title fetcher</h2>
+<p>Fetches the <code>&lt;title&gt;</code> of URLs posted in channels. Shows async work inside event handlers and using <code>api.timeout()</code> for debouncing.</p>
+<pre><code class="language-typescript">import type { KokoAPI, IrcMessageEvent } from &quot;kokoirc/api&quot;
+
+export const meta = {
+  name: &quot;url-title&quot;,
+  version: &quot;1.0.0&quot;,
+  description: &quot;Fetch and display URL titles&quot;,
+}
+
+const URL_RE = /https?:\/\/[^\s]+/g
+
+export default function urlTitle(api: KokoAPI) {
+  api.on(&quot;irc.privmsg&quot;, async (event: IrcMessageEvent) =&gt; {
+    if (!event.isChannel) return
+
+    const urls = event.message.match(URL_RE)
+    if (!urls) return
+
+    for (const url of urls.slice(0, 3)) {
+      try {
+        const res = await fetch(url, {
+          redirect: &quot;follow&quot;,
+          signal: AbortSignal.timeout(5000),
+        })
+        const html = await res.text()
+        const match = html.match(/&lt;title[^&gt;]*&gt;([^&lt;]+)&lt;\/title&gt;/i)
+        if (match) {
+          const title = match[1].trim()
+          const bufId = api.ui.makeBufferId(
+            event.connectionId, event.target)
+          api.ui.addMessage(bufId, {
+            type: &quot;event&quot;,
+            text: `[URL] ${title}`,
+            highlight: false,
+          })
+        }
+      } catch {
+        // Ignore fetch errors
+      }
+    }
+  }, api.EventPriority.LOW) // Run after normal handlers
+}
+</code></pre>
+<hr>
+<h2>Tips</h2>
+<ul>
+<li><strong>Cleanup</strong>: Always return a cleanup function if you create resources outside the API (WebSocket connections, file handles, etc.). Event handlers, commands, and timers registered through <code>api.*</code> are cleaned up automatically.</li>
+<li><strong>connectionId</strong>: All <code>api.irc.*</code> methods accept an optional <code>connectionId</code> as the last parameter. If omitted, they use the active buffer&#39;s connection. Pass it explicitly when handling events to target the correct server.</li>
+<li><strong>Stopping events</strong>: <code>ctx.stop()</code> must be called synchronously. If you need to do async work (fetch, timers), decide whether to stop the event <em>before</em> any <code>await</code>.</li>
+<li><strong>Debug logging</strong>: Use <code>api.log()</code> instead of <code>console.log()</code> so output respects the <code>scripts.debug</code> config flag.</li>
+</ul>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="scripting-api.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">API Reference</span>
+</a>
+          <a href="theming.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">Theming</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
