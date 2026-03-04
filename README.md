@@ -2,6 +2,8 @@
 
 A modern terminal IRC client built with [OpenTUI](https://github.com/anomalyco/opentui), React, and Bun. Inspired by irssi, designed for the future.
 
+**[Documentation](https://kofany.github.io/kokoIRC/)** | **[GitHub](https://github.com/kofany/kokoIRC)**
+
 ![Splash screen](docs/screenshots/splash.png)
 
 ![Chat view with multiple networks](docs/screenshots/chat.png)
