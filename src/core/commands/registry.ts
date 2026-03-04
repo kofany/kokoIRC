@@ -1,5 +1,6 @@
 import { getClient, connectServer, disconnectServer, getAllClientIds } from "@/core/irc"
 import { useStore } from "@/core/state/store"
+import { nextMsgId } from "@/core/utils/id"
 import { loadConfig, saveConfig, saveCredentialsToEnv, cloneConfig } from "@/core/config/loader"
 import { loadTheme } from "@/core/theme/loader"
 import { BufferType, makeBufferId, ActivityLevel } from "@/types"
@@ -192,7 +193,7 @@ export const commands: Record<string, CommandDef> = {
       // Show the sent message in the target buffer
       if (s.buffers.has(bufferId)) {
         s.addMessage(bufferId, {
-          id: crypto.randomUUID(),
+          id: nextMsgId(),
           timestamp: new Date(),
           type: "message",
           nick: conn?.nick ?? "",
@@ -220,7 +221,7 @@ export const commands: Record<string, CommandDef> = {
         client.action(buf.name, args[0])
         const conn = s.connections.get(connId)
         s.addMessage(buf.id, {
-          id: crypto.randomUUID(),
+          id: nextMsgId(),
           timestamp: new Date(),
           type: "action",
           nick: conn?.nick ?? "",

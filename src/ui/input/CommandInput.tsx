@@ -2,6 +2,7 @@ import { useState, useRef, useCallback, useEffect } from "react"
 import { useStore } from "@/core/state/store"
 import { parseCommand, executeCommand, getCommandNames, getSubcommands } from "@/core/commands"
 import { getClient } from "@/core/irc"
+import { nextMsgId } from "@/core/utils/id"
 import { useKeyboard, useRenderer } from "@opentui/react"
 import { useStatusbarColors } from "@/ui/hooks/useStatusbarColors"
 import type { InputRenderable } from "@opentui/core"
@@ -75,7 +76,7 @@ export function CommandInput() {
         client.say(buffer.name, trimmed)
         const conn = useStore.getState().connections.get(buffer.connectionId)
         addMessage(buffer.id, {
-          id: crypto.randomUUID(),
+          id: nextMsgId(),
           timestamp: new Date(),
           type: "message",
           nick: conn?.nick ?? "",

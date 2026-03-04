@@ -10,6 +10,7 @@ import { initHomeDir } from "@/core/init"
 import { autoloadScripts } from "@/core/scripts/manager"
 import { initStorage, shutdownStorage } from "@/core/storage"
 import { BufferType, ActivityLevel, makeBufferId, getSortGroup } from "@/types"
+import { nextMsgId } from "@/core/utils/id"
 import { SplashScreen } from "@/ui/splash/SplashScreen"
 import { AppLayout } from "@/ui/layout/AppLayout"
 import { TopicBar } from "@/ui/layout/TopicBar"
@@ -152,7 +153,7 @@ export function App() {
         type: BufferType.Server,
         name: "Status",
         messages: [{
-          id: crypto.randomUUID(),
+          id: nextMsgId(),
           timestamp: new Date(),
           type: "event" as const,
           text: "Welcome to kokoIRC. Type /connect to connect to a server.",

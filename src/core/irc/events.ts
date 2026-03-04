@@ -1,7 +1,8 @@
 import type { Client } from "kofany-irc-framework"
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
-import type { Message } from "@/types"
+import type { Message, NickEntry } from "@/types"
+import { nextMsgId } from "@/core/utils/id"
 import { formatDuration, formatDate, buildModeString, buildPrefixMap, buildModeOrder, getHighestPrefix, getNickMode } from "./formatting"
 import { handleNetsplitQuit, handleNetsplitJoin, destroyNetsplitState } from "./netsplit"
 import { shouldSuppressNickFlood, destroyAntifloodState } from "./antiflood"
@@ -145,10 +146,8 @@ export function bindEvents(client: Client, connectionId: string) {
       .filter(([_, buf]) => buf.connectionId === connectionId && buf.users.has(event.nick))
       .map(([id]) => id)
 
-    // Remove nick from all affected channels
-    for (const id of affected) {
-      getStore().removeNick(id, event.nick)
-    }
+    // Batch-remove nick from all affected channels (1 set() call)
+    getStore().batchRemoveNick(affected.map(id => ({ bufferId: id, nick: event.nick })))
 
     // Check if this is a netsplit — if so, batch it instead of showing individual quits
     if (handleNetsplitQuit(connectionId, event.nick, event.message || "", affected)) {
@@ -157,11 +156,12 @@ export function bindEvents(client: Client, connectionId: string) {
 
     if (shouldIgnore(event.nick, event.ident, event.hostname, "QUITS")) return
 
-    for (const id of affected) {
-      getStore().addMessage(id, makeFormattedEvent("quit", [
+    getStore().batchAddMessage(affected.map(id => ({
+      bufferId: id,
+      message: makeFormattedEvent("quit", [
         event.nick, event.ident || "", event.hostname || "", event.message || "",
-      ]))
-    }
+      ]),
+    })))
   })
 
   client.on("kick", (event) => {
@@ -232,14 +232,13 @@ export function bindEvents(client: Client, connectionId: string) {
       : false
 
     s.addMessage(bufferId, {
-      id: crypto.randomUUID(),
+      id: nextMsgId(),
       timestamp: new Date(event.time || Date.now()),
       type: "message",
       nick: event.nick,
       nickMode: getNickMode(s.buffers, bufferId, event.nick),
       text: event.message,
       highlight: isMention,
-      tags: event.tags,
     })
 
     if (s.activeBufferId !== bufferId && !isOwnMsg) {
@@ -262,13 +261,12 @@ export function bindEvents(client: Client, connectionId: string) {
     const bufferId = makeBufferId(connectionId, bufferName)
 
     s.addMessage(bufferId, {
-      id: crypto.randomUUID(),
+      id: nextMsgId(),
       timestamp: new Date(event.time || Date.now()),
       type: "action",
       nick: event.nick,
       text: event.message,
       highlight: false,
-      tags: event.tags,
     })
   })
 
@@ -288,7 +286,7 @@ export function bindEvents(client: Client, connectionId: string) {
       // Fallback to server status buffer
       const statusId = makeBufferId(connectionId, "Status")
       s.addMessage(statusId, {
-        id: crypto.randomUUID(),
+        id: nextMsgId(),
         timestamp: new Date(event.time || Date.now()),
         type: "notice",
         nick: event.nick,
@@ -299,7 +297,7 @@ export function bindEvents(client: Client, connectionId: string) {
     }
 
     s.addMessage(bufferId, {
-      id: crypto.randomUUID(),
+      id: nextMsgId(),
       timestamp: new Date(event.time || Date.now()),
       type: "notice",
       nick: event.nick,
@@ -327,14 +325,24 @@ export function bindEvents(client: Client, connectionId: string) {
       .filter(([_, buf]) => buf.connectionId === connectionId && buf.users.has(event.nick))
       .map(([id]) => id)
 
+    // Batch-update nick across all affected buffers (1 set() call)
+    getStore().batchUpdateNick(affected.map(id => ({
+      bufferId: id, oldNick: event.nick, newNick: event.new_nick,
+    })))
+
     const nickIgnored = shouldIgnore(event.nick, event.ident, event.hostname, "NICKS")
-    for (const id of affected) {
-      getStore().updateNick(id, event.nick, event.new_nick)
-      if (nickIgnored) continue
-      if (shouldSuppressNickFlood(connectionId, id)) continue
-      getStore().addMessage(id, makeFormattedEvent("nick_change", [
-        event.nick, event.new_nick,
-      ]))
+    if (!nickIgnored) {
+      const msgEntries: Array<{ bufferId: string; message: Message }> = []
+      for (const id of affected) {
+        if (shouldSuppressNickFlood(connectionId, id)) continue
+        msgEntries.push({
+          bufferId: id,
+          message: makeFormattedEvent("nick_change", [event.nick, event.new_nick]),
+        })
+      }
+      if (msgEntries.length > 0) {
+        getStore().batchAddMessage(msgEntries)
+      }
     }
   })
 
@@ -369,11 +377,12 @@ export function bindEvents(client: Client, connectionId: string) {
     const prefixMap = buildPrefixMap(conn?.isupport?.PREFIX)
     const modeOrder = buildModeOrder(conn?.isupport?.PREFIX)
 
+    const nickEntries: Array<{ bufferId: string; entry: NickEntry }> = []
     for (const user of event.users) {
       // irc-framework gives modes as array of chars (["o","v"]) or prefix symbols (["@","+"])
       // Normalize to mode chars and store all of them
       const rawModes = (user.modes ?? [])
-        .map((m) => {
+        .map((m: string) => {
           // If it's already a mode char in the order list, keep it
           if (modeOrder.includes(m)) return m
           // Otherwise it's a prefix symbol — reverse-lookup
@@ -385,13 +394,13 @@ export function bindEvents(client: Client, connectionId: string) {
         .filter(Boolean)
         .join("")
       const prefix = getHighestPrefix(rawModes, modeOrder, prefixMap)
-      getStore().addNick(bufferId, {
-        nick: user.nick,
-        prefix,
-        modes: rawModes,
-        away: !!user.away,
-        account: user.account,
+      nickEntries.push({
+        bufferId,
+        entry: { nick: user.nick, prefix, modes: rawModes, away: !!user.away, account: user.account },
       })
+    }
+    if (nickEntries.length > 0) {
+      getStore().batchAddNick(nickEntries)
     }
   })
 
@@ -597,18 +606,22 @@ export function bindEvents(client: Client, connectionId: string) {
     }
     if (!event.nick) return
 
-    // Update nick away status in all shared channels
+    // Batch-update nick away status in all shared channels (1 set() call)
+    const nickEntries: Array<{ bufferId: string; entry: NickEntry }> = []
     for (const [bufId, buf] of s.buffers) {
       if (buf.connectionId === connectionId && buf.users.has(event.nick)) {
         const entry = buf.users.get(event.nick)!
-        getStore().addNick(bufId, { ...entry, away: true })
+        nickEntries.push({ bufferId: bufId, entry: { ...entry, away: true } })
       }
+    }
+    if (nickEntries.length > 0) {
+      getStore().batchAddNick(nickEntries)
     }
 
     // Show in query buffer if we have one open (RPL_AWAY response to messaging)
     const queryId = makeBufferId(connectionId, event.nick)
     if (s.buffers.has(queryId)) {
-      s.addMessage(queryId, makeEventMessage(
+      getStore().addMessage(queryId, makeEventMessage(
         `%Z565f89${event.nick} is away${event.message ? ": " + event.message : ""}%N`
       ))
     }
@@ -622,12 +635,16 @@ export function bindEvents(client: Client, connectionId: string) {
     }
     if (!event.nick) return
 
-    // Update nick away status in all shared channels
+    // Batch-update nick away status in all shared channels (1 set() call)
+    const nickEntries: Array<{ bufferId: string; entry: NickEntry }> = []
     for (const [bufId, buf] of s.buffers) {
       if (buf.connectionId === connectionId && buf.users.has(event.nick)) {
         const entry = buf.users.get(event.nick)!
-        getStore().addNick(bufId, { ...entry, away: false })
+        nickEntries.push({ bufferId: bufId, entry: { ...entry, away: false } })
       }
+    }
+    if (nickEntries.length > 0) {
+      getStore().batchAddNick(nickEntries)
     }
   })
 
@@ -717,14 +734,18 @@ export function bindEvents(client: Client, connectionId: string) {
   // ACCOUNT-NOTIFY — a user's account changed (requires account-notify cap)
   client.on("account", (event) => {
     const s = getStore()
+    const nickEntries: Array<{ bufferId: string; entry: NickEntry }> = []
     for (const [bufId, buf] of s.buffers) {
       if (buf.connectionId === connectionId && buf.users.has(event.nick)) {
         const entry = buf.users.get(event.nick)!
-        getStore().addNick(bufId, {
-          ...entry,
-          account: event.account === false ? undefined : event.account,
+        nickEntries.push({
+          bufferId: bufId,
+          entry: { ...entry, account: event.account === false ? undefined : event.account },
         })
       }
+    }
+    if (nickEntries.length > 0) {
+      getStore().batchAddNick(nickEntries)
     }
   })
 
@@ -1013,7 +1034,7 @@ function displayNumberedList(
 /** System/inline event — text may contain %Z color codes. */
 function makeEventMessage(text: string): Message {
   return {
-    id: crypto.randomUUID(),
+    id: nextMsgId(),
     timestamp: new Date(),
     type: "event",
     text,
@@ -1024,7 +1045,7 @@ function makeEventMessage(text: string): Message {
 /** IRC event with theme format key — rendered via [formats.events] in MessageLine. */
 function makeFormattedEvent(key: string, params: string[]): Message {
   return {
-    id: crypto.randomUUID(),
+    id: nextMsgId(),
     timestamp: new Date(),
     type: "event",
     text: params.join(" "),

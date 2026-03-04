@@ -59,14 +59,13 @@ export interface Buffer {
 export type MessageType = 'message' | 'action' | 'event' | 'notice' | 'ctcp'
 
 export interface Message {
-  id: string
+  id: number
   timestamp: Date
   type: MessageType
   nick?: string
   nickMode?: string
   text: string
   highlight: boolean
-  tags?: Record<string, string>
   eventKey?: string
   eventParams?: string[]
 }

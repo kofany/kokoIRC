@@ -42,6 +42,12 @@ interface AppState {
   addListEntry: (bufferId: string, modeChar: ListModeKey, entry: ListEntry) => void
   removeListEntry: (bufferId: string, modeChar: ListModeKey, mask: string) => void
 
+  // Batch actions (single set() for N mutations)
+  batchRemoveNick: (entries: Array<{ bufferId: string; nick: string }>) => void
+  batchAddNick: (entries: Array<{ bufferId: string; entry: NickEntry }>) => void
+  batchUpdateNick: (entries: Array<{ bufferId: string; oldNick: string; newNick: string; prefix?: string }>) => void
+  batchAddMessage: (entries: Array<{ bufferId: string; message: Message }>) => void
+
   // Config/Theme
   setConfig: (config: AppConfig) => void
   setTheme: (theme: ThemeFile) => void
@@ -238,6 +244,71 @@ export const useStore = create<AppState>((set, get) => ({
     buffers.set(bufferId, { ...buf, listModes })
     return { buffers }
   }),
+
+  batchRemoveNick: (entries) => set((s) => {
+    const buffers = new Map(s.buffers)
+    for (const { bufferId, nick } of entries) {
+      const buf = buffers.get(bufferId)
+      if (!buf) continue
+      const users = new Map(buf.users)
+      users.delete(nick)
+      buffers.set(bufferId, { ...buf, users })
+    }
+    return { buffers }
+  }),
+
+  batchAddNick: (entries) => set((s) => {
+    const buffers = new Map(s.buffers)
+    for (const { bufferId, entry } of entries) {
+      const buf = buffers.get(bufferId)
+      if (!buf) continue
+      const users = new Map(buf.users)
+      users.set(entry.nick, entry)
+      buffers.set(bufferId, { ...buf, users })
+    }
+    return { buffers }
+  }),
+
+  batchUpdateNick: (entries) => set((s) => {
+    const buffers = new Map(s.buffers)
+    for (const { bufferId, oldNick, newNick, prefix } of entries) {
+      const buf = buffers.get(bufferId)
+      if (!buf) continue
+      const users = new Map(buf.users)
+      const existing = users.get(oldNick)
+      if (existing) {
+        users.delete(oldNick)
+        users.set(newNick, { ...existing, nick: newNick, prefix: prefix ?? existing.prefix })
+      }
+      buffers.set(bufferId, { ...buf, users })
+    }
+    return { buffers }
+  }),
+
+  batchAddMessage: (entries) => {
+    // Log each message to persistent storage before the set() call
+    for (const { bufferId, message } of entries) {
+      const slashIdx = bufferId.indexOf("/")
+      if (slashIdx > 0) {
+        const network = bufferId.slice(0, slashIdx)
+        const buffer = bufferId.slice(slashIdx + 1)
+        logMessage(network, buffer, message.id, message.type, message.text, message.nick ?? null, message.highlight, message.timestamp)
+      }
+    }
+
+    return set((s) => {
+      const buffers = new Map(s.buffers)
+      const maxLines = s.config?.display.scrollback_lines ?? 2000
+      for (const { bufferId, message } of entries) {
+        const buf = buffers.get(bufferId)
+        if (!buf) continue
+        const messages = [...buf.messages, message]
+        if (messages.length > maxLines) messages.splice(0, messages.length - maxLines)
+        buffers.set(bufferId, { ...buf, messages })
+      }
+      return { buffers }
+    })
+  },
 
   setConfig: (config) => set({ config }),
   setTheme: (theme) => set({ theme }),

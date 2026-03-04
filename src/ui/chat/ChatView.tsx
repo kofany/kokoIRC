@@ -4,14 +4,20 @@ import { MessageLine } from "./MessageLine"
 import type { ScrollBoxRenderable } from "@opentui/core"
 
 export function ChatView() {
+  const buffer = useStore((s) => {
+    const id = s.activeBufferId
+    return id ? s.buffers.get(id) ?? null : null
+  })
   const activeBufferId = useStore((s) => s.activeBufferId)
-  const buffersMap = useStore((s) => s.buffers)
-  const connectionsMap = useStore((s) => s.connections)
+  const currentNick = useStore((s) => {
+    const id = s.activeBufferId
+    if (!id) return ""
+    const buf = s.buffers.get(id)
+    if (!buf) return ""
+    return s.connections.get(buf.connectionId)?.nick ?? ""
+  })
   const colors = useStore((s) => s.theme?.colors)
   const scrollRef = useRef<ScrollBoxRenderable>(null)
-
-  const buffer = activeBufferId ? buffersMap.get(activeBufferId) ?? null : null
-  const currentNick = buffer ? connectionsMap.get(buffer.connectionId)?.nick ?? "" : ""
 
   // Snap to bottom when switching buffers
   useEffect(() => {

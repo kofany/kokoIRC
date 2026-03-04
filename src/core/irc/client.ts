@@ -3,6 +3,7 @@ import type { ConnectOptions } from "kofany-irc-framework"
 import type { ServerConfig } from "@/types/config"
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType, ActivityLevel } from "@/types"
+import { nextMsgId } from "@/core/utils/id"
 import { bindEvents } from "./events"
 import { createAntiFloodMiddleware } from "./antiflood"
 import { createIgnoreMiddleware } from "./ignore"
@@ -61,7 +62,7 @@ export function connectServer(id: string, config: ServerConfig): Client {
 
   // Show connecting message in Status buffer
   store.addMessage(statusBufferId, {
-    id: crypto.randomUUID(),
+    id: nextMsgId(),
     timestamp: new Date(),
     type: "event" as const,
     text: `%Ze0af68Connecting to ${config.address}:${config.port}${config.tls ? " (TLS)" : ""}...%N`,

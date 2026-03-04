@@ -35,7 +35,7 @@ export async function initStorage(config: LoggingConfig): Promise<void> {
 export function logMessage(
   network: string,
   buffer: string,
-  msgId: string,
+  msgId: string | number,
   type: MessageType,
   text: string,
   nick: string | null,
@@ -45,7 +45,7 @@ export function logMessage(
   if (!writer) return
 
   const row: LogRow = {
-    msg_id: msgId,
+    msg_id: String(msgId),
     network,
     buffer,
     timestamp: timestamp.getTime(),

@@ -1,6 +1,7 @@
 import { useStore } from "@/core/state/store"
 import { makeBufferId } from "@/types"
 import type { Message } from "@/types"
+import { nextMsgId } from "@/core/utils/id"
 
 // ─── Types ───────────────────────────────────────────────────
 
@@ -232,7 +233,7 @@ function tick(connId: string) {
 
 function makeEventMessage(text: string): Message {
   return {
-    id: crypto.randomUUID(),
+    id: nextMsgId(),
     timestamp: new Date(),
     type: "event",
     text,

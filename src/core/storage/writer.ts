@@ -14,6 +14,8 @@ export class LogWriter {
   private cryptoKey: CryptoKey | null = null
   private hasFts: boolean
   private listeners: MessageListener[] = []
+  private insertStmt: ReturnType<Database["prepare"]> | null = null
+  private insertFtsStmt: ReturnType<Database["prepare"]> | null = null
 
   constructor(db: Database, config: LoggingConfig) {
     this.db = db
@@ -24,6 +26,14 @@ export class LogWriter {
   async init(): Promise<void> {
     if (this.config.encrypt) {
       this.cryptoKey = await loadOrCreateKey()
+    }
+    this.insertStmt = this.db.prepare(
+      "INSERT INTO messages (msg_id, network, buffer, timestamp, type, nick, text, highlight, iv) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
+    )
+    if (this.hasFts) {
+      this.insertFtsStmt = this.db.prepare(
+        "INSERT INTO messages_fts (rowid, nick, text) VALUES (?, ?, ?)"
+      )
     }
   }
 
@@ -70,16 +80,8 @@ export class LogWriter {
     this.flushing = true
     const batch = this.queue.splice(0)
 
-    const insert = this.db.prepare(
-      "INSERT INTO messages (msg_id, network, buffer, timestamp, type, nick, text, highlight, iv) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)"
-    )
-
-    // Prepare FTS insert if available
-    const insertFts = this.hasFts
-      ? this.db.prepare(
-          "INSERT INTO messages_fts (rowid, nick, text) VALUES (?, ?, ?)"
-        )
-      : null
+    const insert = this.insertStmt!
+    const insertFts = this.insertFtsStmt
 
     try {
       // bun:sqlite transactions are sync, but encrypt is async — handle both modes

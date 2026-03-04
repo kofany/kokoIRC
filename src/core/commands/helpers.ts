@@ -1,6 +1,7 @@
 import { useStore } from "@/core/state/store"
 import { makeBufferId, BufferType } from "@/types"
 import type { AppConfig } from "@/types/config"
+import { nextMsgId } from "@/core/utils/id"
 import { CREDENTIAL_FIELDS } from "./types"
 import type { ResolvedConfig } from "./types"
 
@@ -10,7 +11,7 @@ export function addLocalEvent(text: string) {
   const buf = s.activeBufferId
   if (!buf) return
   s.addMessage(buf, {
-    id: crypto.randomUUID(),
+    id: nextMsgId(),
     timestamp: new Date(),
     type: "event",
     text,

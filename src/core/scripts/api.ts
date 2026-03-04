@@ -1,6 +1,7 @@
 import { useStore } from "@/core/state/store"
 import { getClient } from "@/core/irc"
 import { makeBufferId } from "@/types"
+import { nextMsgId } from "@/core/utils/id"
 import { eventBus } from "./event-bus"
 import { EventPriority } from "./types"
 import type {
@@ -106,7 +107,7 @@ export function createScriptAPI(meta: ScriptMeta, scriptDefaults: Record<string,
       const buf = s.activeBufferId
       if (!buf) return
       s.addMessage(buf, {
-        id: crypto.randomUUID(),
+        id: nextMsgId(),
         timestamp: new Date(),
         type: "event",
         text,
@@ -115,7 +116,7 @@ export function createScriptAPI(meta: ScriptMeta, scriptDefaults: Record<string,
     },
     addMessage(bufferId, partial) {
       useStore.getState().addMessage(bufferId, {
-        id: crypto.randomUUID(),
+        id: nextMsgId(),
         timestamp: new Date(),
         ...partial,
       })
