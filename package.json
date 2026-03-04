@@ -1,9 +1,12 @@
 {
   "name": "kokoirc",
-  "version": "0.2.3",
-  "description": "Terminal IRC client built with OpenTUI and React",
+  "version": "0.2.4",
+  "description": "Modern terminal IRC client with inline image preview, SASL, scripting, encrypted logging, and theming — built with OpenTUI, React, and Bun",
   "license": "MIT",
-  "author": "kofany",
+  "author": {
+    "name": "kofany",
+    "url": "https://github.com/kofany"
+  },
   "repository": {
     "type": "git",
     "url": "git+https://github.com/kofany/kokoIRC.git"
@@ -14,12 +17,29 @@
   },
   "keywords": [
     "irc",
+    "irc-client",
     "terminal",
     "tui",
+    "cli",
     "client",
     "chat",
     "opentui",
-    "react"
+    "react",
+    "bun",
+    "sasl",
+    "sixel",
+    "image-preview",
+    "theming",
+    "scripting",
+    "sqlite",
+    "encrypted-logging"
+  ],
+  "engines": {
+    "bun": ">=1.2.0"
+  },
+  "os": [
+    "darwin",
+    "linux"
   ],
   "module": "src/index.tsx",
   "type": "module",

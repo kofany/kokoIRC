@@ -122,7 +122,7 @@ export function connectServer(id: string, config: ServerConfig): Client {
 export function disconnectServer(id: string, message?: string) {
   const client = clients.get(id)
   if (client) {
-    client.quit(message ?? "kIRC")
+    client.quit(message ?? "kokoIRC — https://github.com/kofany/kokoIRC")
     clients.delete(id)
   }
 }

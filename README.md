@@ -15,6 +15,7 @@ A modern terminal IRC client built with [OpenTUI](https://github.com/anomalyco/o
 ## Features
 
 - **Full IRC protocol** — channels, queries, CTCP, SASL, TLS, channel modes, ban lists
+- **Inline image preview** — kitty, iTerm2, sixel, and Unicode fallback with tmux support
 - **irssi-style navigation** — `Esc+1-9` window switching, `/commands`, aliases
 - **Mouse support** — click buffers/nicks, drag to resize sidepanels
 - **Netsplit detection** — batches join/part floods into single events
@@ -89,6 +90,12 @@ autosendcmd = "MSG NickServ identify pass; WAIT 2000; MODE $N +i"
 # sasl_user = "mynick"
 # sasl_pass = "hunter2"
 
+[image_preview]
+enabled = true
+max_width = 800
+max_height = 400
+protocol = "auto"     # "auto", "kitty", "iterm2", "sixel", "unicode"
+
 [logging]
 enabled = true
 encrypt = false       # AES-256-GCM (key auto-generated in ~/.kokoirc/.env)
@@ -102,17 +109,18 @@ j = "/join"
 
 ## Commands
 
-39 built-in commands. Type `/help` for the full list, `/help <command>` for details.
+44 built-in commands. Type `/help` for the full list, `/help <command>` for details.
 
 | Category | Commands |
 |----------|----------|
 | Connection | `/connect`, `/disconnect`, `/quit`, `/server` |
-| Channel | `/join`, `/part`, `/close`, `/clear`, `/topic`, `/list` |
+| Channel | `/join`, `/part`, `/close`, `/clear`, `/topic`, `/names`, `/invite`, `/list` |
 | Messaging | `/msg`, `/me`, `/notice`, `/action`, `/slap`, `/wallops` |
 | Moderation | `/kick`, `/ban`, `/unban`, `/kb`, `/kill`, `/mode` |
 | Nick/Ops | `/nick`, `/op`, `/deop`, `/voice`, `/devoice` |
+| Media | `/image`, `/preview` |
 | User | `/whois`, `/wii`, `/ignore`, `/unignore` |
-| Info | `/stats` |
+| Info | `/version`, `/stats` |
 | Server | `/quote` (`/raw`), `/oper` |
 | Config | `/set`, `/alias`, `/unalias`, `/reload` |
 | Logging | `/log status`, `/log search <query>` |
@@ -204,25 +212,32 @@ Messages are stored in `~/.kokoirc/logs.db` (SQLite WAL mode). The log system su
 
 ```
 src/
-├── index.tsx              # Entry point — creates OpenTUI renderer
+├── index.tsx                # Entry point — creates OpenTUI renderer
 ├── app/
-│   └── App.tsx            # Lifecycle: config → storage → theme → connect
+│   └── App.tsx              # Lifecycle: config → storage → theme → connect
 ├── core/
-│   ├── irc/               # IRC client, event binding, middlewares
-│   ├── state/             # Zustand store (UI-agnostic)
-│   ├── commands/          # Command registry and parser
-│   ├── config/            # TOML loader, defaults, merge logic
-│   ├── storage/           # SQLite logging, encryption, queries
-│   ├── scripts/           # Script loader, API, event bus
-│   └── theme/             # Format string parser, theme loader
-├── ui/                    # React components (no IRC imports)
-│   ├── AppLayout.tsx      # 3-column layout with resizable panels
-│   ├── ChatView.tsx       # Message scrollback
-│   ├── BufferList.tsx     # Left sidebar
-│   ├── NickList.tsx       # Right sidebar
-│   ├── CommandInput.tsx   # Input line with prompt
-│   └── StatusLine.tsx     # Status bar
-└── types/                 # TypeScript definitions
+│   ├── init.ts              # Application initialization
+│   ├── constants.ts         # Global constants
+│   ├── irc/                 # IRC client, event binding, middlewares
+│   ├── state/               # Zustand store (UI-agnostic)
+│   ├── commands/            # Command registry, parser, help system
+│   ├── config/              # TOML loader, defaults, merge logic
+│   ├── storage/             # SQLite logging, encryption, queries
+│   ├── scripts/             # Script loader, API, event bus
+│   ├── theme/               # Format string parser, theme loader
+│   ├── image-preview/       # Inline image display (kitty, iTerm2, sixel)
+│   └── utils/               # Message ID generator
+├── ui/                      # React components (no IRC imports)
+│   ├── layout/              # AppLayout, TopicBar
+│   ├── chat/                # ChatView, MessageLine
+│   ├── input/               # CommandInput
+│   ├── sidebar/             # BufferList, NickList
+│   ├── statusbar/           # StatusLine
+│   ├── overlay/             # ImagePreview
+│   ├── splash/              # SplashScreen
+│   ├── hooks/               # useStatusbarColors
+│   └── ErrorBoundary.tsx    # React error boundary
+└── types/                   # TypeScript definitions
 ```
 
 The UI layer never imports from `core/irc/` — all communication goes through the Zustand store. This keeps the architecture clean and makes it possible to drive the same store from a web frontend.

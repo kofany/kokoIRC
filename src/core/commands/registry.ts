@@ -249,7 +249,7 @@ export const commands: Record<string, CommandDef> = {
 
   quit: {
     handler(args) {
-      const reason = args.join(" ") || "kIRC"
+      const reason = args.join(" ") || "kokoIRC — https://github.com/kofany/kokoIRC"
       const ids = getAllClientIds()
       for (const id of ids) {
         disconnectServer(id, reason)
