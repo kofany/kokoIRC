@@ -102,12 +102,12 @@ j = "/join"
 
 ## Commands
 
-38 built-in commands. Type `/help` for the full list, `/help <command>` for details.
+39 built-in commands. Type `/help` for the full list, `/help <command>` for details.
 
 | Category | Commands |
 |----------|----------|
 | Connection | `/connect`, `/disconnect`, `/quit`, `/server` |
-| Channel | `/join`, `/part`, `/close`, `/topic`, `/list` |
+| Channel | `/join`, `/part`, `/close`, `/clear`, `/topic`, `/list` |
 | Messaging | `/msg`, `/me`, `/notice`, `/action`, `/slap`, `/wallops` |
 | Moderation | `/kick`, `/ban`, `/unban`, `/kb`, `/kill`, `/mode` |
 | Nick/Ops | `/nick`, `/op`, `/deop`, `/voice`, `/devoice` |

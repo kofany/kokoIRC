@@ -26,6 +26,7 @@ interface AppState {
 
   // Message actions
   addMessage: (bufferId: string, message: Message) => void
+  clearMessages: (bufferId: string) => void
 
   // Nicklist actions
   addNick: (bufferId: string, entry: NickEntry) => void
@@ -144,6 +145,14 @@ export const useStore = create<AppState>((set, get) => ({
       return { buffers }
     })
   },
+
+  clearMessages: (bufferId) => set((s) => {
+    const buffers = new Map(s.buffers)
+    const buf = buffers.get(bufferId)
+    if (!buf) return s
+    buffers.set(bufferId, { ...buf, messages: [] })
+    return { buffers }
+  }),
 
   addNick: (bufferId, entry) => set((s) => {
     const buffers = new Map(s.buffers)

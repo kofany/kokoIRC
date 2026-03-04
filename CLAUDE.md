@@ -110,6 +110,15 @@ bun --hot ./index.ts
 
 For more information, read the Bun API docs in `node_modules/bun-types/docs/**.mdx`.
 
+## Documentation
+
+When making changes to commands, features, config options, scripting API, or theming:
+1. Update the relevant `docs/commands/*.md` files and/or `docs/src/content/*.md` pages
+2. Run `bun run docs:build` to rebuild the GitHub Pages site
+3. Commit the updated docs and built HTML together with the feature changes
+
+The docs site lives at https://kofany.github.io/kokoIRC/ and is served from the `docs/` directory on `main`.
+
 ## English Corrections
 
 If the user has made spelling or grammar mistakes in their message, include a correction section at the end of each response. The correct word should be **bold** and in magenta color:

@@ -310,6 +310,17 @@ export const commands: Record<string, CommandDef> = {
     usage: "/close [reason]",
   },
 
+  clear: {
+    handler() {
+      const s = useStore.getState()
+      if (!s.activeBufferId) return
+      s.clearMessages(s.activeBufferId)
+      addLocalEvent(`%Z6e738dBuffer cleared%N`)
+    },
+    description: "Clear current buffer's messages",
+    usage: "/clear",
+  },
+
   whois: {
     handler(args, connId) {
       const client = getClient(connId)
