@@ -1,0 +1,357 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Logging & Search — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html" class="active">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Logging &amp; Search</h1>
+<p>kokoIRC stores chat messages in a local SQLite database for persistent history and full-text search. Messages survive restarts and are available across sessions — no external service needed.</p>
+<h2>Overview</h2>
+<p>When logging is enabled, every message that reaches the UI is written to a SQLite database at <code>~/.kokoirc/logs.db</code>. Messages filtered by <code>/ignore</code>, antiflood, or script <code>stop()</code> propagation are never stored.</p>
+<p>The storage system is designed for speed and reliability:</p>
+<ul>
+<li><strong>WAL mode</strong> — SQLite Write-Ahead Logging allows concurrent reads while writing</li>
+<li><strong>Batched writes</strong> — messages are buffered and flushed every <strong>50 messages</strong> or every <strong>1 second</strong> (whichever comes first), in a single transaction</li>
+<li><strong>FTS5 index</strong> — full-text search index for instant search across all channels and queries</li>
+<li><strong>Read markers</strong> — per-client unread tracking, ready for future web frontend sync</li>
+</ul>
+<h2>Configuration</h2>
+<p>Add a <code>[logging]</code> section to <code>~/.kokoirc/config.toml</code>:</p>
+<pre><code class="language-toml">[logging]
+enabled = true
+encrypt = false       # AES-256-GCM (key auto-generated in ~/.kokoirc/.env)
+retention_days = 0    # 0 = keep forever
+exclude_types = []    # filter: &quot;message&quot;, &quot;action&quot;, &quot;event&quot;, &quot;notice&quot;, &quot;ctcp&quot;
+</code></pre>
+<h3>Options</h3>
+<table>
+<thead>
+<tr>
+<th>Option</th>
+<th>Type</th>
+<th>Default</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>enabled</code></td>
+<td>bool</td>
+<td><code>true</code></td>
+<td>Enable or disable chat logging entirely</td>
+</tr>
+<tr>
+<td><code>encrypt</code></td>
+<td>bool</td>
+<td><code>false</code></td>
+<td>Encrypt message content with AES-256-GCM</td>
+</tr>
+<tr>
+<td><code>retention_days</code></td>
+<td>int</td>
+<td><code>0</code></td>
+<td>Auto-delete messages older than N days. <code>0</code> = keep forever</td>
+</tr>
+<tr>
+<td><code>exclude_types</code></td>
+<td>array</td>
+<td><code>[]</code></td>
+<td>Message types to exclude from logging</td>
+</tr>
+</tbody></table>
+<h3>Exclude types</h3>
+<p>The <code>exclude_types</code> array accepts any combination of these message types:</p>
+<ul>
+<li><code>&quot;message&quot;</code> — regular channel and private messages</li>
+<li><code>&quot;action&quot;</code> — <code>/me</code> actions</li>
+<li><code>&quot;event&quot;</code> — join, part, quit, kick, mode changes, topic changes</li>
+<li><code>&quot;notice&quot;</code> — server and user notices</li>
+<li><code>&quot;ctcp&quot;</code> — CTCP requests and replies</li>
+</ul>
+<p>A common setup to skip noisy join/part/quit events:</p>
+<pre><code class="language-toml">[logging]
+exclude_types = [&quot;event&quot;]
+</code></pre>
+<h2>Database</h2>
+<h3>Location</h3>
+<p>All logs are stored in a single file:</p>
+<pre><code>~/.kokoirc/logs.db
+</code></pre>
+<p>The database uses SQLite with WAL (Write-Ahead Logging) mode and <code>PRAGMA synchronous=NORMAL</code> for a good balance between performance and durability.</p>
+<h3>Schema</h3>
+<p>Messages are stored in a <code>messages</code> table with these columns:</p>
+<table>
+<thead>
+<tr>
+<th>Column</th>
+<th>Type</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>id</code></td>
+<td>INTEGER</td>
+<td>Auto-incrementing primary key</td>
+</tr>
+<tr>
+<td><code>msg_id</code></td>
+<td>TEXT</td>
+<td>UUID shared across TUI and web clients</td>
+</tr>
+<tr>
+<td><code>network</code></td>
+<td>TEXT</td>
+<td>Server/network identifier</td>
+</tr>
+<tr>
+<td><code>buffer</code></td>
+<td>TEXT</td>
+<td>Channel or query name</td>
+</tr>
+<tr>
+<td><code>timestamp</code></td>
+<td>INTEGER</td>
+<td>Unix milliseconds</td>
+</tr>
+<tr>
+<td><code>type</code></td>
+<td>TEXT</td>
+<td>Message type (message, action, event, notice, ctcp)</td>
+</tr>
+<tr>
+<td><code>nick</code></td>
+<td>TEXT</td>
+<td>Sender nick (null for system events)</td>
+</tr>
+<tr>
+<td><code>text</code></td>
+<td>TEXT</td>
+<td>Message content (or ciphertext when encrypted)</td>
+</tr>
+<tr>
+<td><code>highlight</code></td>
+<td>INTEGER</td>
+<td>1 if the message triggered a highlight</td>
+</tr>
+<tr>
+<td><code>iv</code></td>
+<td>BLOB</td>
+<td>Initialization vector (only when encrypted)</td>
+</tr>
+</tbody></table>
+<p>Indexes cover <code>(network, buffer, timestamp)</code>, <code>(timestamp)</code>, and <code>(msg_id)</code> for fast lookups.</p>
+<h3>Batched writes</h3>
+<p>Messages are not written to disk immediately. Instead, they are buffered in memory and flushed to the database when either condition is met:</p>
+<ol>
+<li>The buffer reaches <strong>50 messages</strong></li>
+<li><strong>1 second</strong> has elapsed since the first buffered message</li>
+</ol>
+<p>Each flush writes all buffered messages in a <strong>single transaction</strong>, minimizing disk I/O and SQLite lock contention. On shutdown, any remaining buffered messages are flushed before the database closes.</p>
+<h2>Full-text search</h2>
+<p>When encryption is disabled, kokoIRC creates an FTS5 (Full-Text Search 5) virtual table that indexes the <code>nick</code> and <code>text</code> columns. This enables instant full-text search across all logged messages.</p>
+<h3>Using search</h3>
+<pre><code>/log search &lt;query&gt;
+</code></pre>
+<p>Search runs against the current buffer&#39;s network and channel context. Results show the 20 most recent matches with timestamps.</p>
+<p>Examples:</p>
+<pre><code>/log search ssl certificate
+/log search meeting tomorrow
+/log search &quot;exact phrase&quot;
+</code></pre>
+<p>The query uses SQLite FTS5 syntax under the hood, wrapped in a phrase match by default. This means your search terms are matched as an exact phrase.</p>
+<h3>Limitations</h3>
+<ul>
+<li>Search is <strong>not available</strong> in encrypted mode — ciphertext cannot be indexed</li>
+<li>Results are limited to 50 matches (showing the 20 most recent in the UI)</li>
+</ul>
+<h2>Encryption</h2>
+<p>When <code>encrypt = true</code>, message content is encrypted with <strong>AES-256-GCM</strong> before being written to the database.</p>
+<h3>How it works</h3>
+<ol>
+<li>On first use, a random 256-bit key is generated and saved to <code>~/.kokoirc/.env</code> as <code>KOKO_LOG_KEY</code></li>
+<li>The <code>.env</code> file permissions are set to <code>0600</code> (owner read/write only)</li>
+<li>Each message gets a unique 12-byte random IV (initialization vector)</li>
+<li>Only the <code>text</code> column is encrypted — metadata (network, buffer, nick, timestamp, type) remains in <strong>plaintext</strong> for indexing and querying</li>
+</ol>
+<p>No password prompt is needed. The key lives alongside the database, following the same trust model as irssi log files or SSH keys — if someone has access to your home directory, they have access to your data.</p>
+<h3>Trade-offs</h3>
+<p>Enabling encryption means:</p>
+<ul>
+<li>FTS5 search is disabled (you cannot search encrypted content)</li>
+<li>Writes are slightly slower due to per-message async encryption</li>
+<li>The key must be present in <code>.env</code> to read old messages</li>
+</ul>
+<h3>Encryption config</h3>
+<pre><code class="language-toml">[logging]
+encrypt = true
+</code></pre>
+<p>The key is auto-generated on first write. You&#39;ll find it in <code>~/.kokoirc/.env</code>:</p>
+<pre><code>KOKO_LOG_KEY=&lt;64-character hex string&gt;
+</code></pre>
+<p>Back up this key if you want to preserve access to encrypted logs.</p>
+<h2>Read markers</h2>
+<p>The database tracks per-client read positions using a <code>read_markers</code> table. Each marker stores:</p>
+<ul>
+<li><strong>network</strong> and <strong>buffer</strong> — which conversation</li>
+<li><strong>client</strong> — identifier (<code>tui</code> for the terminal client, or a web session ID)</li>
+<li><strong>last_read</strong> — timestamp of the last read message</li>
+</ul>
+<p>This enables unread count tracking per buffer per client. When multiple clients (TUI + future web frontend) access the same logs, each maintains its own read position.</p>
+<h2>Retention</h2>
+<p>Set <code>retention_days</code> to automatically purge old messages:</p>
+<pre><code class="language-toml">[logging]
+retention_days = 90    # delete messages older than 90 days
+</code></pre>
+<ul>
+<li><code>0</code> (default) = keep messages forever</li>
+<li>Purging runs on startup — messages older than the configured period are deleted in a single transaction</li>
+<li>When FTS5 is active, the search index is cleaned up before rows are deleted to maintain consistency</li>
+</ul>
+<h2>Commands</h2>
+<h3><code>/log status</code></h3>
+<p>Show logging status including message count, database size, encryption mode, and database path.</p>
+<pre><code>/log status
+</code></pre>
+<p>This is the default when you run <code>/log</code> with no subcommand.</p>
+<p>Output example:</p>
+<pre><code>───── Log Status ─────────────────────────
+  Messages: 12,847
+  Database: 4.2 MB
+  Mode:     plain text
+  Path:     /home/user/.kokoirc/logs.db
+─────────────────────────────────────────────
+</code></pre>
+<h3><code>/log search &lt;query&gt;</code></h3>
+<p>Full-text search across all logged messages in the current buffer context.</p>
+<pre><code>/log search &lt;query&gt;
+</code></pre>
+<p>Results show the 20 most recent matches with timestamps and nicks.</p>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="theming-format-strings.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">Format Strings</span>
+</a>
+          <a href="roadmap.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">Roadmap</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
