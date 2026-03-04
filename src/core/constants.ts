@@ -16,5 +16,8 @@ export const SCRIPTS_DIR = join(HOME_DIR, "scripts")
 
 export const LOG_DB_PATH = join(HOME_DIR, "logs.db")
 
+// Image cache
+export const IMAGE_CACHE_DIR = join(HOME_DIR, "image_cache")
+
 // Default assets bundled with the package
 export const DEFAULT_THEMES_DIR = join(PKG_DIR, "themes")

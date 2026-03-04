@@ -1,6 +1,6 @@
 import { mkdir } from "node:fs/promises"
 import { join } from "node:path"
-import { HOME_DIR, CONFIG_PATH, DEFAULT_THEMES_DIR, SCRIPTS_DIR } from "./constants"
+import { HOME_DIR, CONFIG_PATH, DEFAULT_THEMES_DIR, SCRIPTS_DIR, IMAGE_CACHE_DIR } from "./constants"
 import { DEFAULT_CONFIG } from "./config/defaults"
 import { saveConfig } from "./config/loader"
 
@@ -11,6 +11,7 @@ export async function initHomeDir(): Promise<void> {
   // Create directories
   await mkdir(themesDir, { recursive: true })
   await mkdir(SCRIPTS_DIR, { recursive: true })
+  await mkdir(IMAGE_CACHE_DIR, { recursive: true })
 
   // Generate default config if missing
   const configFile = Bun.file(CONFIG_PATH)

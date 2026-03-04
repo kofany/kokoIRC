@@ -19,6 +19,7 @@ import { NickList } from "@/ui/sidebar/NickList"
 import { ChatView } from "@/ui/chat/ChatView"
 import { CommandInput } from "@/ui/input/CommandInput"
 import { StatusLine } from "@/ui/statusbar/StatusLine"
+import { ImagePreview } from "@/ui/overlay/ImagePreview"
 
 export function App() {
   const renderer = useRenderer()
@@ -35,6 +36,13 @@ export function App() {
   useKeyboard((key) => {
     if (key.name === "q" && key.ctrl) {
       shutdownStorage().finally(() => renderer.destroy())
+      return
+    }
+
+    // Dismiss image preview on any keypress
+    if (useStore.getState().imagePreview) {
+      useStore.getState().hideImagePreview()
+      key.preventDefault()
       return
     }
 
@@ -201,6 +209,7 @@ export function App() {
       nicklist={<NickList />}
       input={<CommandInput />}
       statusline={statusbarEnabled ? <StatusLine /> : undefined}
+      overlay={<ImagePreview />}
     />
   )
 }
