@@ -1,0 +1,479 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Theming — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html" class="active">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Theming</h1>
+<h2>Overview</h2>
+<p>kokoIRC uses TOML-based theme files with an irssi-inspired format string language. Themes control colors, message formatting, nick styles, sidebar appearance, and UI elements. The format string system supports named colors, 24-bit hex colors, style toggles, variable substitution, and reusable abstractions — giving you full control over how every piece of the interface is rendered.</p>
+<h2>Theme location</h2>
+<p>Custom themes live in <code>~/.kokoirc/themes/</code> as <code>.theme</code> files (TOML format). To set the active theme:</p>
+<p><strong>In config.toml:</strong></p>
+<pre><code class="language-toml">[general]
+theme = &quot;default&quot;        # loads ~/.kokoirc/themes/default.theme
+</code></pre>
+<p><strong>At runtime:</strong></p>
+<pre><code>/set general.theme mytheme
+/reload                          # or reload to pick up file changes
+</code></pre>
+<p>The theme name is the filename without the <code>.theme</code> extension. When a theme file is not found, kokoIRC falls back to a minimal built-in theme with basic formatting.</p>
+<h2>Built-in theme: Nightfall</h2>
+<p>kokoIRC ships with <strong>Nightfall</strong> — a modern dark theme inspired by the Tokyo Night color palette. It uses muted blues and grays for the base UI, with carefully chosen accent colors:</p>
+<ul>
+<li><strong>Blue accents</strong> (<code>#7aa2f7</code>) for nicks, channels, and interactive elements</li>
+<li><strong>Green</strong> (<code>#9ece6a</code>) for your own nick and join events</li>
+<li><strong>Orange</strong> (<code>#e0af68</code>) for actions and the selected buffer indicator</li>
+<li><strong>Red/pink</strong> (<code>#f7768e</code>) for errors, quits, and highlighted messages</li>
+<li><strong>Purple</strong> (<code>#bb9af7</code>) for nick mentions and nick changes</li>
+<li><strong>Muted gray</strong> (<code>#565f89</code>) for timestamps, hostmasks, and secondary info</li>
+</ul>
+<p>Messages display with a right-aligned nick column, a colored <code>❯</code> separator, and subtle timestamp coloring — creating a clean, readable layout even in busy channels.</p>
+<h2>Theme file structure</h2>
+<p>A theme file has four sections: <code>[meta]</code>, <code>[colors]</code>, <code>[abstracts]</code>, and <code>[formats.*]</code>.</p>
+<p>Here is the complete built-in <code>default.theme</code>:</p>
+<pre><code class="language-toml">[meta]
+name = &quot;Nightfall&quot;
+description = &quot;Modern dark theme with subtle accents&quot;
+
+[colors]
+bg = &quot;#1a1b26&quot;
+bg_alt = &quot;#16161e&quot;
+border = &quot;#292e42&quot;
+fg = &quot;#a9b1d6&quot;
+fg_muted = &quot;#565f89&quot;
+fg_dim = &quot;#292e42&quot;
+accent = &quot;#7aa2f7&quot;
+cursor = &quot;#7aa2f7&quot;
+
+[abstracts]
+timestamp = &quot;%Z6e738d$*%Z7aa2f7%N&quot;
+msgnick = &quot;%Z565f89$0$1%Z7aa2f7❯%N%| &quot;
+ownnick = &quot;%Z9ece6a%_$*%_%N&quot;
+pubnick = &quot;%Z7aa2f7%_$*%_%N&quot;
+menick = &quot;%Zbb9af7%_$*%_%N&quot;
+channel = &quot;%Z7aa2f7%_$*%_%N&quot;
+action = &quot;%Ze0af68* $*%N&quot;
+error = &quot;%Zf7768e! $*%N&quot;
+
+[formats.messages]
+own_msg = &quot;{msgnick $2 {ownnick $0}}%Zc0caf5$1%N&quot;
+pubmsg = &quot;{msgnick $2 {pubnick $0}}%Za9b1d6$1%N&quot;
+pubmsg_mention = &quot;{msgnick %Zbb9af7$2 {menick $0}}%Zbb9af7$1%N&quot;
+pubmsg_highlight = &quot;{msgnick %Zf7768e$2 %Zf7768e%_$0%_%N}%Zf7768e$1%N&quot;
+action = &quot;{action $0} %Ze0af68$1%N&quot;
+notice = &quot;%Z7dcfff-%Z7aa2f7$0%Z7dcfff-%N $1&quot;
+
+[formats.events]
+join = &quot;%Z9ece6a--&gt;%N %Za9b1d6$0%N %Z565f89($1@$2)%N has joined {channel $3}&quot;
+part = &quot;%Ze0af68&lt;--%N %Za9b1d6$0%N %Z565f89($1@$2)%N has left {channel $3} %Z565f89($4)%N&quot;
+quit = &quot;%Zf7768e&lt;--%N %Za9b1d6$0%N %Z565f89($1@$2)%N has quit %Z565f89($3)%N&quot;
+nick_change = &quot;%Zbb9af7---%N %Za9b1d6$0%N is now known as %Za9b1d6$1%N&quot;
+topic = &quot;%Z7aa2f7---%N Topic set by %Z565f89$0%N: $1&quot;
+mode = &quot;%Z7aa2f7---%N %Za9b1d6$0%N sets mode %Ze0af68$1%N on {channel $2}&quot;
+
+[formats.sidepanel]
+header = &quot;%Z7aa2f7%_$0%_%N&quot;
+item = &quot;%Z565f89$0.%N %Z6e738d$1%N&quot;
+item_selected = &quot;%Ze0af68$0.%N %Zc0caf5%_$1%_%N&quot;
+item_activity_0 = &quot;%Z565f89$0.%N %Z6e738d$1%N&quot;
+item_activity_1 = &quot;%Z565f89$0.%N %Z9ece6a$1%N&quot;
+item_activity_2 = &quot;%Z565f89$0.%N %Zf7768e$1%N&quot;
+item_activity_3 = &quot;%Z565f89$0.%N %Ze0af68$1%N&quot;
+item_activity_4 = &quot;%Z565f89$0.%N %Zbb9af7$1%N&quot;
+
+[formats.nicklist]
+owner = &quot;%Ze0af68~%Zc0caf5$0%N&quot;
+admin = &quot;%Zf7768e&amp;%Zc0caf5$0%N&quot;
+op = &quot;%Z9ece6a@%Za9b1d6$0%N&quot;
+halfop = &quot;%Z7aa2f7%%%Za9b1d6$0%N&quot;
+voice = &quot;%Z7dcfff+%Z6e738d$0%N&quot;
+normal = &quot; %Z565f89$0%N&quot;
+</code></pre>
+<h2>How sections work</h2>
+<h3><code>[meta]</code></h3>
+<p>Name and description of the theme. Purely informational — used for theme listing and identification.</p>
+<h3><code>[colors]</code></h3>
+<p>The base color palette for the UI chrome (background, borders, foreground text, cursor). These are used by the UI framework directly — not by the format string engine. All values are hex RGB strings.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Purpose</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>bg</code></td>
+<td>Main background</td>
+</tr>
+<tr>
+<td><code>bg_alt</code></td>
+<td>Alternate/darker background</td>
+</tr>
+<tr>
+<td><code>border</code></td>
+<td>Border and separator lines</td>
+</tr>
+<tr>
+<td><code>fg</code></td>
+<td>Primary text color</td>
+</tr>
+<tr>
+<td><code>fg_muted</code></td>
+<td>Secondary/muted text</td>
+</tr>
+<tr>
+<td><code>fg_dim</code></td>
+<td>Very dim text (inactive elements)</td>
+</tr>
+<tr>
+<td><code>accent</code></td>
+<td>Accent color for highlights</td>
+</tr>
+<tr>
+<td><code>cursor</code></td>
+<td>Cursor color</td>
+</tr>
+</tbody></table>
+<h3><code>[abstracts]</code></h3>
+<p>Reusable formatting macros. Define a pattern once, reference it anywhere with <code>{name args}</code>. Abstractions can nest — an abstract can reference other abstracts.</p>
+<p>For example, the <code>msgnick</code> abstract formats the nick column:</p>
+<pre><code class="language-toml">msgnick = &quot;%Z565f89$0$1%Z7aa2f7❯%N%| &quot;
+</code></pre>
+<ul>
+<li><code>$0</code> = nick mode prefix (padding/alignment)</li>
+<li><code>$1</code> = the nick itself</li>
+<li><code>%Z565f89</code> = muted gray color</li>
+<li><code>%Z7aa2f7❯</code> = blue separator character</li>
+<li><code>%N</code> = reset colors</li>
+<li><code>%|</code> = indent marker for wrapped lines</li>
+</ul>
+<p>Then in <code>[formats.messages]</code>, it&#39;s used like:</p>
+<pre><code class="language-toml">pubmsg = &quot;{msgnick $2 {pubnick $0}}%Za9b1d6$1%N&quot;
+</code></pre>
+<p>This nests <code>{pubnick $0}</code> inside <code>{msgnick ...}</code>, so the nick gets styled by <code>pubnick</code> first, then the result is placed into the <code>msgnick</code> layout. See the <a href="theming-format-strings.html">Format Strings Reference</a> for complete syntax.</p>
+<h3><code>[formats.messages]</code></h3>
+<p>Controls how chat messages are displayed. Variables available:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>$0</code></td>
+<td>Nick (display name, possibly truncated)</td>
+</tr>
+<tr>
+<td><code>$1</code></td>
+<td>Message text</td>
+</tr>
+<tr>
+<td><code>$2</code></td>
+<td>Nick mode prefix with alignment padding</td>
+</tr>
+</tbody></table>
+<p>Format keys:</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>When used</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>own_msg</code></td>
+<td>Messages you send</td>
+</tr>
+<tr>
+<td><code>pubmsg</code></td>
+<td>Messages from other users</td>
+</tr>
+<tr>
+<td><code>pubmsg_mention</code></td>
+<td>Messages mentioning your nick</td>
+</tr>
+<tr>
+<td><code>pubmsg_highlight</code></td>
+<td>Highlighted messages</td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td><code>/me</code> actions (<code>$0</code> = nick, <code>$1</code> = action text)</td>
+</tr>
+<tr>
+<td><code>notice</code></td>
+<td>NOTICE messages (<code>$0</code> = sender, <code>$1</code> = text)</td>
+</tr>
+</tbody></table>
+<h3><code>[formats.events]</code></h3>
+<p>Controls how IRC events (join, part, quit, etc.) are displayed.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Variables</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>join</code></td>
+<td><code>$0</code> nick, <code>$1</code> ident, <code>$2</code> hostname, <code>$3</code> channel</td>
+</tr>
+<tr>
+<td><code>part</code></td>
+<td><code>$0</code> nick, <code>$1</code> ident, <code>$2</code> hostname, <code>$3</code> channel, <code>$4</code> reason</td>
+</tr>
+<tr>
+<td><code>quit</code></td>
+<td><code>$0</code> nick, <code>$1</code> ident, <code>$2</code> hostname, <code>$3</code> reason</td>
+</tr>
+<tr>
+<td><code>nick_change</code></td>
+<td><code>$0</code> old nick, <code>$1</code> new nick</td>
+</tr>
+<tr>
+<td><code>topic</code></td>
+<td><code>$0</code> nick who set it, <code>$1</code> new topic text</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td><code>$0</code> nick who set it, <code>$1</code> mode string, <code>$2</code> channel</td>
+</tr>
+</tbody></table>
+<h3><code>[formats.sidepanel]</code></h3>
+<p>Controls the buffer list in the left panel. Variables: <code>$0</code> = buffer number, <code>$1</code> = buffer name.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>When used</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>header</code></td>
+<td>Connection/server header (<code>$0</code> = server label)</td>
+</tr>
+<tr>
+<td><code>item</code></td>
+<td>Default buffer item</td>
+</tr>
+<tr>
+<td><code>item_selected</code></td>
+<td>Currently active buffer</td>
+</tr>
+<tr>
+<td><code>item_activity_0</code></td>
+<td>No activity</td>
+</tr>
+<tr>
+<td><code>item_activity_1</code></td>
+<td>Normal activity (messages)</td>
+</tr>
+<tr>
+<td><code>item_activity_2</code></td>
+<td>Mention/highlight activity</td>
+</tr>
+<tr>
+<td><code>item_activity_3</code></td>
+<td>High activity</td>
+</tr>
+<tr>
+<td><code>item_activity_4</code></td>
+<td>Special activity</td>
+</tr>
+</tbody></table>
+<h3><code>[formats.nicklist]</code></h3>
+<p>Controls how nicks are displayed in the right panel nick list. Variable: <code>$0</code> = nick.</p>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Prefix</th>
+<th>When used</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>owner</code></td>
+<td><code>~</code></td>
+<td>Channel owner</td>
+</tr>
+<tr>
+<td><code>admin</code></td>
+<td><code>&amp;</code></td>
+<td>Channel admin</td>
+</tr>
+<tr>
+<td><code>op</code></td>
+<td><code>@</code></td>
+<td>Channel operator</td>
+</tr>
+<tr>
+<td><code>halfop</code></td>
+<td><code>%</code></td>
+<td>Half-operator</td>
+</tr>
+<tr>
+<td><code>voice</code></td>
+<td><code>+</code></td>
+<td>Voiced user</td>
+</tr>
+<tr>
+<td><code>normal</code></td>
+<td>(none)</td>
+<td>Regular user</td>
+</tr>
+</tbody></table>
+<h2>Creating a custom theme</h2>
+<p><strong>Step 1 — Copy the default theme:</strong></p>
+<pre><code class="language-bash">cp ~/.kokoirc/themes/default.theme ~/.kokoirc/themes/mytheme.theme
+</code></pre>
+<p><strong>Step 2 — Edit the file:</strong></p>
+<p>Open <code>~/.kokoirc/themes/mytheme.theme</code> in any text editor. Change colors, abstractions, and formats to your liking. The <a href="theming-format-strings.html">Format Strings Reference</a> documents all available codes.</p>
+<p><strong>Step 3 — Activate the theme:</strong></p>
+<pre><code>/set general.theme mytheme
+</code></pre>
+<p>Or edit <code>config.toml</code>:</p>
+<pre><code class="language-toml">[general]
+theme = &quot;mytheme&quot;
+</code></pre>
+<p><strong>Step 4 — Iterate:</strong></p>
+<p>Edit the <code>.theme</code> file in your editor, then run <code>/reload</code> in kokoIRC to see changes instantly. No restart needed.</p>
+<h2>Tips</h2>
+<ul>
+<li>Start from the default theme and make incremental changes — it&#39;s easier to see what each format does.</li>
+<li>Use <code>%Z</code> hex colors for precise control. The named color codes (<code>%r</code>, <code>%g</code>, etc.) map to the classic 16-color terminal palette and may look different across terminals.</li>
+<li>Keep abstractions for anything you use more than once. Changing <code>ownnick</code> in <code>[abstracts]</code> updates every format that references <code>{ownnick}</code>.</li>
+<li>The <code>%|</code> indent marker affects where wrapped lines start. Place it after the nick column so long messages wrap neatly.</li>
+<li>Activity levels in the sidepanel (0-4) correspond to: no activity, normal messages, mentions, high activity, and special events. Color them progressively more noticeable.</li>
+</ul>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="scripting-examples.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">Examples</span>
+</a>
+          <a href="theming-format-strings.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">Format Strings</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Format Strings — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html" class="active">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Format Strings Reference</h1>
+<p>This is a comprehensive reference for the kokoIRC format string language used in theme files. The format engine is irssi-compatible with extensions for 24-bit color and mIRC control codes.</p>
+<h2>Color codes</h2>
+<h3>Named colors (irssi-compatible)</h3>
+<p>Single-character codes following <code>%</code>. Lowercase = normal, uppercase = bright.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Color</th>
+<th>Hex</th>
+<th>Code</th>
+<th>Color</th>
+<th>Hex</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>%k</code></td>
+<td>Black</td>
+<td><code>#000000</code></td>
+<td><code>%K</code></td>
+<td>Bright black (gray)</td>
+<td><code>#555555</code></td>
+</tr>
+<tr>
+<td><code>%r</code></td>
+<td>Red</td>
+<td><code>#aa0000</code></td>
+<td><code>%R</code></td>
+<td>Bright red</td>
+<td><code>#ff5555</code></td>
+</tr>
+<tr>
+<td><code>%g</code></td>
+<td>Green</td>
+<td><code>#00aa00</code></td>
+<td><code>%G</code></td>
+<td>Bright green</td>
+<td><code>#55ff55</code></td>
+</tr>
+<tr>
+<td><code>%y</code></td>
+<td>Yellow (brown)</td>
+<td><code>#aa5500</code></td>
+<td><code>%Y</code></td>
+<td>Bright yellow</td>
+<td><code>#ffff55</code></td>
+</tr>
+<tr>
+<td><code>%b</code></td>
+<td>Blue</td>
+<td><code>#0000aa</code></td>
+<td><code>%B</code></td>
+<td>Bright blue</td>
+<td><code>#5555ff</code></td>
+</tr>
+<tr>
+<td><code>%m</code></td>
+<td>Magenta</td>
+<td><code>#aa00aa</code></td>
+<td><code>%M</code></td>
+<td>Bright magenta</td>
+<td><code>#ff55ff</code></td>
+</tr>
+<tr>
+<td><code>%c</code></td>
+<td>Cyan</td>
+<td><code>#00aaaa</code></td>
+<td><code>%C</code></td>
+<td>Bright cyan</td>
+<td><code>#55ffff</code></td>
+</tr>
+<tr>
+<td><code>%w</code></td>
+<td>White (light gray)</td>
+<td><code>#aaaaaa</code></td>
+<td><code>%W</code></td>
+<td>Bright white</td>
+<td><code>#ffffff</code></td>
+</tr>
+</tbody></table>
+<p>These set the <strong>foreground</strong> color. They map to fixed hex values, so they look identical regardless of terminal color scheme.</p>
+<h3>24-bit hex colors</h3>
+<pre><code>%ZRRGGBB
+</code></pre>
+<p>Sets the foreground color to an arbitrary 24-bit hex value. The six hex digits follow <code>%Z</code> immediately with no separator.</p>
+<p><strong>Examples:</strong></p>
+<pre><code>%Z7aa2f7         # Tokyo Night blue
+%Ze0af68         # Warm orange
+%Zf7768e         # Soft red/pink
+%Z9ece6a         # Green
+%Zbb9af7         # Purple
+%Zc0caf5         # Light foreground
+%Z565f89         # Muted gray
+%Z6e738d         # Dim gray
+</code></pre>
+<p>This is the recommended way to specify colors in themes — it gives you exact control independent of the terminal palette.</p>
+<h3>Reset</h3>
+<pre><code>%N    (or %n)
+</code></pre>
+<p>Resets <strong>all</strong> formatting — foreground color, background color, bold, italic, underline, and dim are all cleared.</p>
+<h3>Literal percent</h3>
+<pre><code>%%
+</code></pre>
+<p>Produces a literal <code>%</code> character in the output.</p>
+<h2>Style codes</h2>
+<p>Style codes are toggles — the first use enables the style, the second disables it.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Style</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>%_</code></td>
+<td><strong>Bold</strong></td>
+<td>Toggle bold text</td>
+</tr>
+<tr>
+<td><code>%u</code></td>
+<td><u>Underline</u></td>
+<td>Toggle underline</td>
+</tr>
+<tr>
+<td><code>%i</code></td>
+<td><em>Italic</em></td>
+<td>Toggle italic/reverse</td>
+</tr>
+<tr>
+<td><code>%d</code></td>
+<td>Dim</td>
+<td>Toggle dim (faded) text</td>
+</tr>
+</tbody></table>
+<p><strong>Example:</strong></p>
+<pre><code>%_bold text%_ normal again
+%Z7aa2f7%_blue bold%_%N plain
+</code></pre>
+<h2>Variables</h2>
+<h3>Positional variables</h3>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>$0</code></td>
+<td>First argument</td>
+</tr>
+<tr>
+<td><code>$1</code></td>
+<td>Second argument</td>
+</tr>
+<tr>
+<td><code>$2</code></td>
+<td>Third argument</td>
+</tr>
+<tr>
+<td>...</td>
+<td>Up to any index (multi-digit supported)</td>
+</tr>
+<tr>
+<td><code>$*</code></td>
+<td>All arguments joined with spaces</td>
+</tr>
+</tbody></table>
+<p>Variables are substituted from the parameters passed to the format string. What each <code>$N</code> means depends on the format section — see <a href="#format-sections">Format sections</a> below.</p>
+<h3>Padded variables</h3>
+<pre><code>$[N]0       Right-pad $0 to N characters
+$[-N]0      Left-pad $0 to N characters
+</code></pre>
+<p>The number in brackets sets the padding width. Positive = right-pad (left-align), negative = left-pad (right-align). Any positional variable index can follow the brackets.</p>
+<p><strong>Examples:</strong></p>
+<pre><code>$[12]0      # Right-pad $0 to 12 chars: &quot;nick        &quot;
+$[-12]0     # Left-pad $0 to 12 chars:  &quot;        nick&quot;
+$[8]1       # Right-pad $1 to 8 chars
+</code></pre>
+<h2>Abstractions</h2>
+<pre><code>{name $args}
+</code></pre>
+<p>References a definition from the <code>[abstracts]</code> section of the theme file, passing arguments. Abstractions work like macros — the name is looked up, arguments are substituted into the template, and the result is expanded in place.</p>
+<h3>How they resolve</h3>
+<p>Given these abstracts:</p>
+<pre><code class="language-toml">[abstracts]
+ownnick = &quot;%Z9ece6a%_$*%_%N&quot;
+msgnick = &quot;%Z565f89$0$1%Z7aa2f7❯%N%| &quot;
+</code></pre>
+<p>And this format:</p>
+<pre><code class="language-toml">own_msg = &quot;{msgnick $2 {ownnick $0}}%Zc0caf5$1%N&quot;
+</code></pre>
+<p>The resolution for a message from nick &quot;koko&quot; with mode &quot;@&quot; and text &quot;hello&quot;:</p>
+<ol>
+<li><code>$0</code> = &quot;koko&quot;, <code>$1</code> = &quot;hello&quot;, <code>$2</code> = &quot;@&quot;</li>
+<li>Inner <code>{ownnick $0}</code> resolves first: <code>{ownnick koko}</code> becomes <code>%Z9ece6a%_koko%_%N</code></li>
+<li><code>{msgnick $2 &lt;resolved_ownnick&gt;}</code> becomes <code>{msgnick @ %Z9ece6a%_koko%_%N}</code></li>
+<li>The <code>msgnick</code> template receives <code>$0</code> = &quot;@&quot; and <code>$1</code> = &quot;%Z9ece6a%<em>koko%</em>%N&quot;</li>
+<li>Final: <code>%Z565f89@%Z9ece6a%_koko%_%N%Z7aa2f7❯%N%| %Zc0caf5hello%N</code></li>
+</ol>
+<h3>Nesting</h3>
+<p>Abstractions can nest to any depth (up to 10 levels to prevent infinite recursion). Arguments to an abstraction can themselves contain abstraction references.</p>
+<pre><code class="language-toml">[abstracts]
+channel = &quot;%Z7aa2f7%_$*%_%N&quot;
+
+[formats.events]
+join = &quot;%Z9ece6a--&gt;%N $0 has joined {channel $3}&quot;
+</code></pre>
+<p>Here <code>{channel $3}</code> passes the channel name to the <code>channel</code> abstract, which renders it in bold blue.</p>
+<h2>Alignment marker</h2>
+<pre><code>%|
+</code></pre>
+<p>Marks the indent point for wrapped lines. When a message is too long to fit on one line, continuation lines are indented to this position. Typically placed after the nick column so message text wraps neatly without overlapping the nick area.</p>
+<p><strong>Example:</strong></p>
+<pre><code class="language-toml">msgnick = &quot;%Z565f89$0$1%Z7aa2f7❯%N%| &quot;
+#                                  ^^  indent point is after the separator
+</code></pre>
+<h2>mIRC control codes</h2>
+<p>The parser also handles standard mIRC control characters found in incoming IRC messages. These are processed transparently — you don&#39;t use them in theme files, but they render correctly when other clients send formatted text.</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Hex</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>\x02</code></td>
+<td><code>0x02</code></td>
+<td>Bold toggle</td>
+</tr>
+<tr>
+<td><code>\x03</code></td>
+<td><code>0x03</code></td>
+<td>mIRC color: <code>\x03FG</code> or <code>\x03FG,BG</code> (0-98 palette)</td>
+</tr>
+<tr>
+<td><code>\x04</code></td>
+<td><code>0x04</code></td>
+<td>Hex color: <code>\x04RRGGBB</code> or <code>\x04RRGGBB,RRGGBB</code></td>
+</tr>
+<tr>
+<td><code>\x0F</code></td>
+<td><code>0x0F</code></td>
+<td>Reset all formatting</td>
+</tr>
+<tr>
+<td><code>\x11</code></td>
+<td><code>0x11</code></td>
+<td>Monospace (ignored in terminal)</td>
+</tr>
+<tr>
+<td><code>\x16</code></td>
+<td><code>0x16</code></td>
+<td>Reverse (swap foreground/background)</td>
+</tr>
+<tr>
+<td><code>\x1D</code></td>
+<td><code>0x1D</code></td>
+<td>Italic toggle</td>
+</tr>
+<tr>
+<td><code>\x1E</code></td>
+<td><code>0x1E</code></td>
+<td>Strikethrough (mapped to dim)</td>
+</tr>
+<tr>
+<td><code>\x1F</code></td>
+<td><code>0x1F</code></td>
+<td>Underline toggle</td>
+</tr>
+</tbody></table>
+<p>The mIRC color palette supports indices 0-98: the classic 16 colors (0-15) plus an extended palette (16-98) with gradients and grayscale values.</p>
+<h2>Format sections</h2>
+<p>Each format section defines templates for a specific part of the UI. The variables available (<code>$0</code>, <code>$1</code>, etc.) depend on the section.</p>
+<h3><code>[formats.messages]</code></h3>
+<p>Chat message formatting. Called with these parameters:</p>
+<table>
+<thead>
+<tr>
+<th>Variable</th>
+<th>Content</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>$0</code></td>
+<td>Nick (display name, truncated to <code>nick_max_length</code> setting)</td>
+</tr>
+<tr>
+<td><code>$1</code></td>
+<td>Message text body</td>
+</tr>
+<tr>
+<td><code>$2</code></td>
+<td>Nick mode prefix with padding (e.g., <code>&quot;  @&quot;</code> for right-aligned op)</td>
+</tr>
+</tbody></table>
+<table>
+<thead>
+<tr>
+<th>Format key</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>own_msg</code></td>
+<td>Messages you send</td>
+</tr>
+<tr>
+<td><code>pubmsg</code></td>
+<td>Messages from other users</td>
+</tr>
+<tr>
+<td><code>pubmsg_mention</code></td>
+<td>Messages that mention your nick</td>
+</tr>
+<tr>
+<td><code>pubmsg_highlight</code></td>
+<td>Highlighted messages</td>
+</tr>
+<tr>
+<td><code>action</code></td>
+<td><code>/me</code> action messages (<code>$0</code> = nick, <code>$1</code> = action text)</td>
+</tr>
+<tr>
+<td><code>notice</code></td>
+<td>NOTICE messages (<code>$0</code> = sender nick, <code>$1</code> = notice text)</td>
+</tr>
+</tbody></table>
+<p><strong>Default theme examples:</strong></p>
+<pre><code class="language-toml">own_msg = &quot;{msgnick $2 {ownnick $0}}%Zc0caf5$1%N&quot;
+pubmsg = &quot;{msgnick $2 {pubnick $0}}%Za9b1d6$1%N&quot;
+action = &quot;{action $0} %Ze0af68$1%N&quot;
+notice = &quot;%Z7dcfff-%Z7aa2f7$0%Z7dcfff-%N $1&quot;
+</code></pre>
+<h3><code>[formats.events]</code></h3>
+<p>IRC event formatting. Each event type has its own set of variables:</p>
+<table>
+<thead>
+<tr>
+<th>Format key</th>
+<th><code>$0</code></th>
+<th><code>$1</code></th>
+<th><code>$2</code></th>
+<th><code>$3</code></th>
+<th><code>$4</code></th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>join</code></td>
+<td>nick</td>
+<td>ident</td>
+<td>hostname</td>
+<td>channel</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>part</code></td>
+<td>nick</td>
+<td>ident</td>
+<td>hostname</td>
+<td>channel</td>
+<td>reason</td>
+</tr>
+<tr>
+<td><code>quit</code></td>
+<td>nick</td>
+<td>ident</td>
+<td>hostname</td>
+<td>reason</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>nick_change</code></td>
+<td>old nick</td>
+<td>new nick</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>topic</code></td>
+<td>setter nick</td>
+<td>topic text</td>
+<td>—</td>
+<td>—</td>
+<td>—</td>
+</tr>
+<tr>
+<td><code>mode</code></td>
+<td>setter nick</td>
+<td>mode string</td>
+<td>channel</td>
+<td>—</td>
+<td>—</td>
+</tr>
+</tbody></table>
+<p><strong>Default theme examples:</strong></p>
+<pre><code class="language-toml">join = &quot;%Z9ece6a--&gt;%N %Za9b1d6$0%N %Z565f89($1@$2)%N has joined {channel $3}&quot;
+part = &quot;%Ze0af68&lt;--%N %Za9b1d6$0%N %Z565f89($1@$2)%N has left {channel $3} %Z565f89($4)%N&quot;
+quit = &quot;%Zf7768e&lt;--%N %Za9b1d6$0%N %Z565f89($1@$2)%N has quit %Z565f89($3)%N&quot;
+nick_change = &quot;%Zbb9af7---%N %Za9b1d6$0%N is now known as %Za9b1d6$1%N&quot;
+topic = &quot;%Z7aa2f7---%N Topic set by %Z565f89$0%N: $1&quot;
+mode = &quot;%Z7aa2f7---%N %Za9b1d6$0%N sets mode %Ze0af68$1%N on {channel $2}&quot;
+</code></pre>
+<h3><code>[formats.sidepanel]</code></h3>
+<p>Buffer list (left panel) formatting.</p>
+<p><strong>For <code>header</code>:</strong> <code>$0</code> = server/connection label.</p>
+<p><strong>For all item formats:</strong> <code>$0</code> = buffer number, <code>$1</code> = buffer name.</p>
+<table>
+<thead>
+<tr>
+<th>Format key</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>header</code></td>
+<td>Server/connection group header</td>
+</tr>
+<tr>
+<td><code>item</code></td>
+<td>Default buffer item</td>
+</tr>
+<tr>
+<td><code>item_selected</code></td>
+<td>Currently focused buffer</td>
+</tr>
+<tr>
+<td><code>item_activity_0</code></td>
+<td>No new activity</td>
+</tr>
+<tr>
+<td><code>item_activity_1</code></td>
+<td>Normal activity (new messages)</td>
+</tr>
+<tr>
+<td><code>item_activity_2</code></td>
+<td>Mention/highlight activity</td>
+</tr>
+<tr>
+<td><code>item_activity_3</code></td>
+<td>High activity</td>
+</tr>
+<tr>
+<td><code>item_activity_4</code></td>
+<td>Special activity</td>
+</tr>
+</tbody></table>
+<p><strong>Default theme examples:</strong></p>
+<pre><code class="language-toml">header = &quot;%Z7aa2f7%_$0%_%N&quot;
+item_selected = &quot;%Ze0af68$0.%N %Zc0caf5%_$1%_%N&quot;
+item_activity_0 = &quot;%Z565f89$0.%N %Z6e738d$1%N&quot;
+item_activity_2 = &quot;%Z565f89$0.%N %Zf7768e$1%N&quot;
+</code></pre>
+<h3><code>[formats.nicklist]</code></h3>
+<p>Nick list (right panel) formatting. Variable: <code>$0</code> = nick.</p>
+<p>Each format key corresponds to the highest channel privilege prefix the user holds:</p>
+<table>
+<thead>
+<tr>
+<th>Format key</th>
+<th>Prefix</th>
+<th>Description</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>owner</code></td>
+<td><code>~</code></td>
+<td>Channel owner (+q)</td>
+</tr>
+<tr>
+<td><code>admin</code></td>
+<td><code>&amp;</code></td>
+<td>Channel admin (+a)</td>
+</tr>
+<tr>
+<td><code>op</code></td>
+<td><code>@</code></td>
+<td>Channel operator (+o)</td>
+</tr>
+<tr>
+<td><code>halfop</code></td>
+<td><code>%</code></td>
+<td>Half-operator (+h)</td>
+</tr>
+<tr>
+<td><code>voice</code></td>
+<td><code>+</code></td>
+<td>Voiced user (+v)</td>
+</tr>
+<tr>
+<td><code>normal</code></td>
+<td>(none)</td>
+<td>Regular user</td>
+</tr>
+</tbody></table>
+<p><strong>Default theme examples:</strong></p>
+<pre><code class="language-toml">owner = &quot;%Ze0af68~%Zc0caf5$0%N&quot;
+op = &quot;%Z9ece6a@%Za9b1d6$0%N&quot;
+voice = &quot;%Z7dcfff+%Z6e738d$0%N&quot;
+normal = &quot; %Z565f89$0%N&quot;
+</code></pre>
+<p>Note the leading space in <code>normal</code> — this aligns unprefixed nicks with prefixed ones.</p>
+<h2>Quick reference table</h2>
+<p>All <code>%</code>-codes at a glance:</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>%k</code> <code>%K</code></td>
+<td>Black / bright black</td>
+</tr>
+<tr>
+<td><code>%r</code> <code>%R</code></td>
+<td>Red / bright red</td>
+</tr>
+<tr>
+<td><code>%g</code> <code>%G</code></td>
+<td>Green / bright green</td>
+</tr>
+<tr>
+<td><code>%y</code> <code>%Y</code></td>
+<td>Yellow / bright yellow</td>
+</tr>
+<tr>
+<td><code>%b</code> <code>%B</code></td>
+<td>Blue / bright blue</td>
+</tr>
+<tr>
+<td><code>%m</code> <code>%M</code></td>
+<td>Magenta / bright magenta</td>
+</tr>
+<tr>
+<td><code>%c</code> <code>%C</code></td>
+<td>Cyan / bright cyan</td>
+</tr>
+<tr>
+<td><code>%w</code> <code>%W</code></td>
+<td>White / bright white</td>
+</tr>
+<tr>
+<td><code>%ZRRGGBB</code></td>
+<td>24-bit hex foreground color</td>
+</tr>
+<tr>
+<td><code>%N</code> <code>%n</code></td>
+<td>Reset all formatting</td>
+</tr>
+<tr>
+<td><code>%_</code></td>
+<td>Toggle bold</td>
+</tr>
+<tr>
+<td><code>%u</code></td>
+<td>Toggle underline</td>
+</tr>
+<tr>
+<td><code>%i</code></td>
+<td>Toggle italic</td>
+</tr>
+<tr>
+<td><code>%d</code></td>
+<td>Toggle dim</td>
+</tr>
+<tr>
+<td><code>%|</code></td>
+<td>Indent/alignment marker</td>
+</tr>
+<tr>
+<td><code>%%</code></td>
+<td>Literal <code>%</code> character</td>
+</tr>
+</tbody></table>
+<p>All variable codes:</p>
+<table>
+<thead>
+<tr>
+<th>Code</th>
+<th>Effect</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><code>$0</code>-<code>$9</code>+</td>
+<td>Positional argument (multi-digit supported)</td>
+</tr>
+<tr>
+<td><code>$*</code></td>
+<td>All arguments joined with spaces</td>
+</tr>
+<tr>
+<td><code>$[N]0</code></td>
+<td>Right-pad argument to N characters</td>
+</tr>
+<tr>
+<td><code>$[-N]0</code></td>
+<td>Left-pad argument to N characters</td>
+</tr>
+<tr>
+<td><code>{name args}</code></td>
+<td>Abstraction reference</td>
+</tr>
+</tbody></table>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="theming.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">Theming</span>
+</a>
+          <a href="logging.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">Logging & Search</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
