@@ -7,7 +7,7 @@ import { commands, findByAlias, getCanonicalName } from "./registry"
 
 const CATEGORY_ORDER = [
   "Connection", "Channel", "Messaging", "Moderation",
-  "Configuration", "Statusbar", "Info",
+  "Media", "Configuration", "Statusbar", "Info",
 ]
 
 // ─── /help (no args) — categorized command list ─────────────
