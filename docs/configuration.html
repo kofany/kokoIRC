@@ -60,6 +60,12 @@
     </ul>
   </div>
   <div class="nav-section">
+    <span class="nav-section-title">Features</span>
+    <ul>
+      <li><a href="image-preview.html">Image Preview</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
     <span class="nav-section-title">Customization</span>
     <ul>
       <li><a href="theming.html">Theming</a></li>
@@ -145,6 +151,17 @@ autosendcmd = &quot;MSG NickServ identify pass; WAIT 2000; MODE $N +i&quot;
 # reconnect_delay = 30
 # reconnect_max_retries = 10
 
+[image_preview]
+enabled = true
+protocol = &quot;auto&quot;              # &quot;auto&quot;, &quot;kitty&quot;, &quot;iterm2&quot;, &quot;sixel&quot;, &quot;symbols&quot;
+max_width = 0                  # 0 = auto (~75% of terminal)
+max_height = 0                 # 0 = auto (~75% of terminal)
+cache_max_mb = 100
+cache_max_days = 7
+fetch_timeout = 30
+max_file_size = 10485760       # 10MB
+# kitty_format = &quot;rgba&quot;        # &quot;rgba&quot; or &quot;png&quot;
+
 [logging]
 enabled = true
 encrypt = false
@@ -168,6 +185,8 @@ autoload = [&quot;slap&quot;]
 <p>Left panel shows buffer list, right panel shows nick list. Set <code>visible = false</code> to hide a panel. Widths are in terminal columns and can also be adjusted at runtime by dragging panel edges with the mouse.</p>
 <h3><code>[servers.*]</code></h3>
 <p>Each server gets a unique identifier (the key after <code>servers.</code>). The <code>channels</code> array lists channels to auto-join on connect. Channels with keys use the format <code>&quot;#channel key&quot;</code>. See the SASL and autosendcmd sections below for authentication options.</p>
+<h3><code>[image_preview]</code></h3>
+<p>Inline image preview in the terminal. When enabled, clicking an image URL or using <code>/preview &lt;url&gt;</code> displays a popup overlay. The <code>protocol</code> setting controls which graphics protocol to use — <code>auto</code> detects your terminal automatically. Set <code>max_width</code> and <code>max_height</code> to limit popup size (0 = auto-scale to ~75% of terminal). See the <a href="image-preview.html">Image Preview</a> page for full documentation.</p>
 <h3><code>[logging]</code></h3>
 <p>Chat logging to SQLite. When <code>encrypt = true</code>, messages are encrypted with AES-256-GCM (you&#39;ll be prompted for a passphrase). <code>retention_days = 0</code> keeps logs forever; set a positive number to auto-delete old entries.</p>
 <h3><code>[aliases]</code></h3>

@@ -237,11 +237,12 @@ Where kokoIRC is headed — from a feature-complete terminal client to a unified
     <div class="phase-body">
       <p>Feature-complete terminal IRC client, ready for daily use.</p>
       <ul>
-        <li><strong>38 built-in commands</strong> covering channels, queries, server management, and admin operations</li>
+        <li><strong>41 built-in commands</strong> covering channels, queries, server management, media, and admin operations</li>
         <li><strong>TypeScript scripting</strong> with an event bus, custom commands, and full IRC protocol access</li>
         <li><strong>TOML-based theming</strong> with irssi-compatible format strings and 24-bit color support</li>
         <li><strong>Persistent logging</strong> with SQLite WAL, optional AES-256-GCM encryption, and FTS5 full-text search</li>
         <li><strong>Flood protection</strong> and automatic netsplit detection that batches join/part floods</li>
+        <li><strong>Inline image preview</strong> — kitty, iTerm2, sixel, and Unicode fallback with tmux support</li>
         <li><strong>Mouse support</strong> with clickable buffers, nick lists, and draggable panel resize handles</li>
         <li><strong>irssi-style navigation</strong> — <code>Esc+1-9</code> window switching, <code>/commands</code>, and aliases</li>
         <li><strong>Single binary</strong> — compiles to a standalone executable with Bun, no runtime dependencies</li>

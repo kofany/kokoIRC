@@ -40,6 +40,10 @@ A modern terminal IRC client built with OpenTUI, React, and Bun. Inspired by irs
     <div class="card-body">TypeScript scripts with an event bus, custom commands, and full IRC access.</div>
   </div>
   <div class="card">
+    <div class="card-title">Image Preview</div>
+    <div class="card-body">Inline image display via kitty, iTerm2, sixel, or Unicode fallback. Works through tmux.</div>
+  </div>
+  <div class="card">
     <div class="card-title">Single Binary</div>
     <div class="card-body">Compiles to a ~68MB standalone executable. No runtime dependencies.</div>
   </div>

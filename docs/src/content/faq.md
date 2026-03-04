@@ -436,6 +436,16 @@ Whether you're coming from irssi, weechat, The Lounge, or mIRC, you'll find fami
 <div class="faq-item">
   <div class="faq-question" onclick="this.parentElement.classList.toggle('open')">
     <span class="faq-chevron">&#9654;</span>
+    How does image preview work?
+  </div>
+  <div class="faq-answer">
+    kokoIRC detects your terminal's graphics capabilities and uses the best available protocol: <strong>kitty</strong> (kitty, ghostty, WezTerm), <strong>iTerm2</strong>, <strong>sixel</strong> (foot, contour, konsole), or <strong>Unicode half-block symbols</strong> as a fallback. Click an image URL in chat or use <code>/preview &lt;url&gt;</code>. Works through tmux with automatic DCS passthrough. Configure with <code>/set image_preview.protocol auto|kitty|iterm2|sixel|symbols</code>. See the <a href="image-preview.html">Image Preview</a> page for details.
+  </div>
+</div>
+
+<div class="faq-item">
+  <div class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+    <span class="faq-chevron">&#9654;</span>
     How do I write scripts?
   </div>
   <div class="faq-answer">

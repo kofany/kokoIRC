@@ -63,6 +63,17 @@ autosendcmd = "MSG NickServ identify pass; WAIT 2000; MODE $N +i"
 # reconnect_delay = 30
 # reconnect_max_retries = 10
 
+[image_preview]
+enabled = true
+protocol = "auto"              # "auto", "kitty", "iterm2", "sixel", "symbols"
+max_width = 0                  # 0 = auto (~75% of terminal)
+max_height = 0                 # 0 = auto (~75% of terminal)
+cache_max_mb = 100
+cache_max_days = 7
+fetch_timeout = 30
+max_file_size = 10485760       # 10MB
+# kitty_format = "rgba"        # "rgba" or "png"
+
 [logging]
 enabled = true
 encrypt = false
@@ -95,6 +106,10 @@ Left panel shows buffer list, right panel shows nick list. Set `visible = false`
 ### `[servers.*]`
 
 Each server gets a unique identifier (the key after `servers.`). The `channels` array lists channels to auto-join on connect. Channels with keys use the format `"#channel key"`. See the SASL and autosendcmd sections below for authentication options.
+
+### `[image_preview]`
+
+Inline image preview in the terminal. When enabled, clicking an image URL or using `/preview <url>` displays a popup overlay. The `protocol` setting controls which graphics protocol to use — `auto` detects your terminal automatically. Set `max_width` and `max_height` to limit popup size (0 = auto-scale to ~75% of terminal). See the [Image Preview](image-preview.html) page for full documentation.
 
 ### `[logging]`
 

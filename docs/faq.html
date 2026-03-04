@@ -60,6 +60,12 @@
     </ul>
   </div>
   <div class="nav-section">
+    <span class="nav-section-title">Features</span>
+    <ul>
+      <li><a href="image-preview.html">Image Preview</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
     <span class="nav-section-title">Customization</span>
     <ul>
       <li><a href="theming.html">Theming</a></li>
@@ -519,6 +525,16 @@
   </div>
   <div class="faq-answer">
     Yes. Set <code>encrypt = true</code> in the <code>[logging]</code> section of your config. Messages are encrypted with <strong>AES-256-GCM</strong> on a per-message basis. The encryption key is derived from your configuration. Even with encryption enabled, FTS5 search continues to work over the plaintext index columns.
+  </div>
+</div>
+
+<div class="faq-item">
+  <div class="faq-question" onclick="this.parentElement.classList.toggle('open')">
+    <span class="faq-chevron">&#9654;</span>
+    How does image preview work?
+  </div>
+  <div class="faq-answer">
+    kokoIRC detects your terminal's graphics capabilities and uses the best available protocol: <strong>kitty</strong> (kitty, ghostty, WezTerm), <strong>iTerm2</strong>, <strong>sixel</strong> (foot, contour, konsole), or <strong>Unicode half-block symbols</strong> as a fallback. Click an image URL in chat or use <code>/preview &lt;url&gt;</code>. Works through tmux with automatic DCS passthrough. Configure with <code>/set image_preview.protocol auto|kitty|iterm2|sixel|symbols</code>. See the <a href="image-preview.html">Image Preview</a> page for details.
   </div>
 </div>
 

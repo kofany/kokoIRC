@@ -44,6 +44,8 @@ const siteMap: SiteEntry[] = [
   { slug: "scripting-getting-started", title: "Getting Started", section: "Scripting" },
   { slug: "scripting-api", title: "API Reference", section: "Scripting" },
   { slug: "scripting-examples", title: "Examples", section: "Scripting" },
+  // Features
+  { slug: "image-preview", title: "Image Preview", section: "Features" },
   // Customization
   { slug: "theming", title: "Theming", section: "Customization" },
   { slug: "theming-format-strings", title: "Format Strings", section: "Customization" },

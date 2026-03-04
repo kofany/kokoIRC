@@ -1,0 +1,253 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="kokoIRC — A modern terminal IRC client built with OpenTUI, React, and Bun. Scripting, theming, encrypted logging, and more.">
+  <meta name="keywords" content="irc, terminal, tui, client, chat, kokoirc, opentui, bun, react">
+  <meta name="author" content="kofany">
+  <meta property="og:title" content="Image Preview — kokoIRC">
+  <meta property="og:description" content="A modern terminal IRC client built with OpenTUI, React, and Bun. Inspired by irssi, designed for the future.">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://kofany.github.io/kokoIRC/">
+  <meta property="og:image" content="https://kofany.github.io/kokoIRC/images/chat.png">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="{{title}} — kokoIRC">
+  <meta name="twitter:description" content="A modern terminal IRC client built with OpenTUI, React, and Bun.">
+  <meta name="twitter:image" content="https://kofany.github.io/kokoIRC/images/chat.png">
+  <title>{{title}} — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Features</span>
+    <ul>
+      <li><a href="image-preview.html" class="active">Image Preview</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Image Preview</h1>
+<p>kokoIRC can display inline image previews directly in your terminal. When someone shares an image URL in chat, click the link or use <code>/preview &lt;url&gt;</code> to see it without leaving the client.</p>
+<h2>Supported protocols</h2>
+<p>The display protocol is auto-detected based on your terminal emulator:</p>
+<table>
+<thead>
+<tr>
+<th>Protocol</th>
+<th>Terminals</th>
+<th>Quality</th>
+</tr>
+</thead>
+<tbody><tr>
+<td><strong>Kitty</strong></td>
+<td>kitty, ghostty, WezTerm, Rio, Subterm</td>
+<td>Best — dedicated graphics layer, clean delete</td>
+</tr>
+<tr>
+<td><strong>iTerm2</strong></td>
+<td>iTerm2</td>
+<td>Great — inline images via proprietary escape</td>
+</tr>
+<tr>
+<td><strong>Sixel</strong></td>
+<td>foot, contour, konsole, mintty, mlterm, xterm</td>
+<td>Good — bitmap graphics via DEC standard</td>
+</tr>
+<tr>
+<td><strong>Symbols</strong></td>
+<td>Any terminal</td>
+<td>Fallback — Unicode half-block characters</td>
+</tr>
+</tbody></table>
+<p>All protocols work through <strong>tmux</strong> with DCS passthrough. Inside tmux, the outer terminal&#39;s protocol is detected automatically via <code>tmux display-message</code>.</p>
+<h2>Usage</h2>
+<h3>Click a URL</h3>
+<p>When an image link appears in chat, click it. kokoIRC detects image URLs (<code>.jpg</code>, <code>.png</code>, <code>.gif</code>, <code>.webp</code>) and pages with <code>og:image</code> metadata (imgur, imgbb, etc.).</p>
+<h3><code>/preview</code> command</h3>
+<pre><code>/preview https://i.imgur.com/abc123.jpg
+/preview https://imgur.com/gallery/xyz
+</code></pre>
+<p>Fetches the image, displays it as a centered popup overlay. Press any key or click to dismiss.</p>
+<h3><code>/image</code> command</h3>
+<p>Manage the image cache:</p>
+<pre><code>/image              # show status
+/image stats        # cache file count and disk usage
+/image clear        # delete all cached images
+</code></pre>
+<h2>Configuration</h2>
+<p>Add an <code>[image_preview]</code> section to your <code>~/.kokoirc/config.toml</code>:</p>
+<pre><code class="language-toml">[image_preview]
+enabled = true              # enable/disable image preview (default: true)
+protocol = &quot;auto&quot;           # &quot;auto&quot;, &quot;kitty&quot;, &quot;iterm2&quot;, &quot;sixel&quot;, &quot;symbols&quot;
+max_width = 0               # max popup width in columns (0 = auto ~75% of terminal)
+max_height = 0              # max popup height in rows (0 = auto ~75% of terminal)
+cache_max_mb = 100          # disk cache limit in MB
+cache_max_days = 7          # delete cached images older than this
+fetch_timeout = 30          # download timeout in seconds
+max_file_size = 10485760    # max download size in bytes (default: 10MB)
+kitty_format = &quot;rgba&quot;       # kitty pixel format: &quot;rgba&quot; or &quot;png&quot;
+</code></pre>
+<p>All settings can be changed at runtime with <code>/set</code>:</p>
+<pre><code>/set image_preview.enabled false
+/set image_preview.protocol kitty
+/set image_preview.max_width 60
+/set image_preview.cache_max_mb 200
+</code></pre>
+<h3>Protocol selection</h3>
+<ul>
+<li><strong><code>auto</code></strong> (default) — detects your terminal and picks the best protocol</li>
+<li><strong><code>kitty</code></strong> — force kitty graphics protocol (PNG format for reliability)</li>
+<li><strong><code>iterm2</code></strong> — force iTerm2 inline images</li>
+<li><strong><code>sixel</code></strong> — force sixel graphics</li>
+<li><strong><code>symbols</code></strong> — force Unicode half-block fallback (works everywhere)</li>
+</ul>
+<h3>Size limits</h3>
+<p>When <code>max_width</code> and <code>max_height</code> are <code>0</code> (default), the popup scales to ~75% of your terminal dimensions while preserving the image&#39;s aspect ratio. Set explicit values to cap the preview size:</p>
+<pre><code class="language-toml">max_width = 60    # never wider than 60 columns
+max_height = 30   # never taller than 30 rows
+</code></pre>
+<h3>Cache</h3>
+<p>Downloaded images are cached in <code>~/.kokoirc/cache/images/</code>. The cache respects both size (<code>cache_max_mb</code>) and age (<code>cache_max_days</code>) limits. Use <code>/image clear</code> to wipe it manually.</p>
+<h2>Terminal compatibility notes</h2>
+<ul>
+<li><strong>kitty/ghostty/WezTerm</strong>: Full support, images render on a dedicated graphics layer that doesn&#39;t interfere with text</li>
+<li><strong>iTerm2</strong>: Full support via proprietary inline image protocol</li>
+<li><strong>tmux</strong>: Works with DCS passthrough. kokoIRC auto-detects the outer terminal through tmux</li>
+<li><strong>Sixel terminals</strong>: Image quality depends on the terminal&#39;s color palette and resolution support</li>
+<li><strong>Basic terminals</strong>: The Unicode symbols fallback works in any terminal with UTF-8 support, but quality is limited to half-character resolution</li>
+</ul>
+<h2>Troubleshooting</h2>
+<p><strong>Image doesn&#39;t display:</strong>
+Check your protocol setting with <code>/set image_preview.protocol</code>. Try forcing a specific protocol instead of <code>auto</code>.</p>
+<p><strong>Image looks corrupted in tmux:</strong>
+Make sure your tmux version supports DCS passthrough (tmux 3.2+). kokoIRC handles the DCS wrapping automatically.</p>
+<p><strong>Preview is too large/small:</strong>
+Adjust <code>max_width</code> and <code>max_height</code> in your config, or resize your terminal window.</p>
+<p><strong>Cache using too much disk:</strong>
+Lower <code>cache_max_mb</code> or <code>cache_max_days</code>, or run <code>/image clear</code> to wipe the cache.</p>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="scripting-examples.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">Examples</span>
+</a>
+          <a href="theming.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">Theming</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

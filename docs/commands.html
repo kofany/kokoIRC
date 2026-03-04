@@ -60,6 +60,12 @@
     </ul>
   </div>
   <div class="nav-section">
+    <span class="nav-section-title">Features</span>
+    <ul>
+      <li><a href="image-preview.html">Image Preview</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
     <span class="nav-section-title">Customization</span>
     <ul>
       <li><a href="theming.html">Theming</a></li>
@@ -501,6 +507,59 @@ exclude_types = [&quot;event&quot;]  # skip join/part/quit events
 </code></pre>
 <h2>See Also</h2>
 <p>/set, /ignore</p>
+</div>
+<h2 id="cat-media">Media</h2>
+<div class="command-entry" data-command="image" data-category="Media">
+<h1>/image</h1>
+<h2>Syntax</h2>
+<pre><code>/image [stats|clear]
+</code></pre>
+<h2>Description</h2>
+<p>Manage the image preview cache. Without arguments, shows current status.</p>
+<p>All image preview settings are persistent via <code>/set</code>:</p>
+<pre><code>/set image_preview.enabled true|false
+/set image_preview.protocol auto|kitty|iterm2|sixel|symbols
+/set image_preview.max_width 0
+/set image_preview.cache_max_mb 100
+</code></pre>
+<h2>Subcommands</h2>
+<h3>stats</h3>
+<p>Show cache file count and disk usage.</p>
+<pre><code>/image stats
+</code></pre>
+<h3>clear</h3>
+<p>Delete all cached images.</p>
+<pre><code>/image clear
+</code></pre>
+<h2>Examples</h2>
+<pre><code>/image
+/image stats
+/image clear
+/set image_preview.enabled false
+/set image_preview.protocol kitty
+</code></pre>
+<h2>See Also</h2>
+<p>/preview, /set</p>
+</div>
+<div class="command-entry" data-command="preview" data-category="Media">
+<h1>/preview</h1>
+<h2>Syntax</h2>
+<pre><code>/preview &lt;url&gt;
+</code></pre>
+<h2>Description</h2>
+<p>Fetches an image URL and displays it as a popup overlay in the terminal.
+Supports direct image links (jpg, png, gif, webp) and pages with og:image
+metadata (imgur, imgbb, etc.).</p>
+<p>The display protocol is auto-detected based on your terminal:
+kitty, iTerm2, sixel, or Unicode half-block fallback.
+Works through tmux with DCS passthrough.</p>
+<p>Press any key or click to dismiss the preview.</p>
+<h2>Examples</h2>
+<pre><code>/preview https://i.imgur.com/abc123.jpg
+/preview https://imgur.com/gallery/xyz
+</code></pre>
+<h2>See Also</h2>
+<p>/image</p>
 </div>
 <h2 id="cat-messaging">Messaging</h2>
 <div class="command-entry" data-command="me" data-category="Messaging">
