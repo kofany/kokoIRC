@@ -123,14 +123,15 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const { writeSync } = require("node:fs")
-      const { pauseStdin, resumeStdin } = require("@/core/image-preview/stdin-guard")
+      const { getRenderer } = require("@/core/renderer-ref")
       const inTmux = !!process.env.TMUX
+      const renderer = getRenderer()
 
-      pauseStdin()
-      writeSync(1, "\x1b[?1003l\x1b[?1006l\x1b[?1002l\x1b[?1000l")
+      // suspend() removes stdin listener, disables mouse, clears stdin buffer,
+      // sets raw mode false. Prevents accumulated stdin data burst on resume.
+      renderer?.suspend()
 
       if (prev.protocol === "kitty") {
-        // Kitty: image is on separate graphics layer — delete command removes it
         const deleteCmd = "\x1b_Ga=d,q=2\x1b\\"
         if (inTmux) {
           const escaped = deleteCmd.replace(/\x1b/g, "\x1b\x1b")
@@ -140,9 +141,7 @@ export const useStore = create<AppState>((set, get) => ({
         }
       } else {
         // iTerm2/Sixel/Symbols: image is in the cell buffer — overwrite with
-        // spaces using theme bg color. OpenTUI's diff renderer skips empty
-        // cells (they look "unchanged"), so we must fill them with the correct
-        // bg to avoid a default-bg hole where the image was.
+        // spaces using theme bg color to avoid a default-bg hole.
         const termCols = process.stdout.columns || 80
         const termRows = process.stdout.rows || 24
         const popupW = prev.width || 0
@@ -150,7 +149,6 @@ export const useStore = create<AppState>((set, get) => ({
         if (popupW > 0 && popupH > 0) {
           const left = Math.max(0, Math.floor((termCols - popupW) / 2))
           const top = Math.max(0, Math.floor((termRows - popupH) / 2))
-          // Use theme bg color for spaces so empty cells match the UI
           const theme = get().theme
           const hex = theme?.colors?.bg ?? "#1a1b26"
           const r = parseInt(hex.slice(1, 3), 16)
@@ -158,16 +156,18 @@ export const useStore = create<AppState>((set, get) => ({
           const b = parseInt(hex.slice(5, 7), 16)
           const bgSeq = `\x1b[48;2;${r};${g};${b}m`
           const blankLine = bgSeq + " ".repeat(popupW) + "\x1b[0m"
-          writeSync(1, "\x1b7") // save cursor
+          writeSync(1, "\x1b7")
           for (let row = 0; row < popupH; row++) {
             writeSync(1, `\x1b[${top + row + 1};${left + 1}H${blankLine}`)
           }
-          writeSync(1, "\x1b8") // restore cursor
+          writeSync(1, "\x1b8")
         }
       }
 
-      writeSync(1, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h")
-      resumeStdin()
+      // resume() drains accumulated stdin via setImmediate before re-attaching
+      // the data listener — this is the key protection against the burst that
+      // triggers Bun's malloc double-free.
+      renderer?.resume()
     } catch {}
 
     set({ imagePreview: null })

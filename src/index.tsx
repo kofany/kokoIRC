@@ -2,6 +2,7 @@ import { createCliRenderer } from "@opentui/core"
 import { createRoot } from "@opentui/react"
 import { App } from "./app/App"
 import { ErrorBoundary } from "./ui/ErrorBoundary"
+import { setRenderer } from "@/core/renderer-ref"
 
 const renderer = await createCliRenderer({
   exitOnCtrlC: true,
@@ -9,6 +10,7 @@ const renderer = await createCliRenderer({
   useMouse: true,
   enableMouseMovement: true,
 })
+setRenderer(renderer)
 
 createRoot(renderer).render(
   <ErrorBoundary>
