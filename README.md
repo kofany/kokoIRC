@@ -60,7 +60,7 @@ bun run start
 
 # Or build a standalone binary
 bun run build
-./openirc
+./kokoirc
 ```
 
 ## Configuration

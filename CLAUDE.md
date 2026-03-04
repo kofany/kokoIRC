@@ -7,7 +7,7 @@ alwaysApply: true
 # KokoIRC — Terminal IRC Client
 
 Terminal IRC client built with **OpenTUI** (React reconciler for TUI) and **Bun**.
-Binary name: `kokoirc` / `openirc` (compiled). Version 0.1.2.
+Binary name: `kokoirc` (compiled). Version 0.2.4.
 
 ## Available Skills
 
@@ -92,7 +92,7 @@ bun run src/index.tsx          # Run directly
 bun --watch run src/index.tsx  # Watch mode (dev)
 bun run dev                    # Same as watch mode
 bun test                       # Run tests
-bun run build                  # Compile → ./openirc (68MB binary)
+bun run build                  # Compile → ./kokoirc (68MB binary)
 ```
 
 ## Bun Defaults

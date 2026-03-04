@@ -40,7 +40,7 @@ You can compile kokoIRC into a single executable that runs without Bun installed
 
 ```bash
 bun run build
-./openirc
+./kokoirc
 ```
 
 The binary is ~68MB (includes the Bun runtime) and runs without any dependencies. Copy it to any machine with the same OS/architecture and it just works.
