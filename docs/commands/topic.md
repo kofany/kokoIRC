@@ -7,18 +7,24 @@ description: Set or view channel topic
 
 ## Syntax
 
-    /topic [channel] <text>
+    /topic
+    /topic <text>
+    /topic <channel>
+    /topic <channel> <text>
 
 ## Description
 
-Set the topic for a channel. With just text, sets the topic for the
-current channel. Specify a channel name to set a different channel's topic.
+View or set the channel topic.
+
+Without arguments, displays the current topic for the active channel. With only a channel name, requests the topic from the server. With text, sets the topic on the active channel (or on the specified channel).
 
 ## Examples
 
-    /topic Welcome to the channel!
-    /topic #linux Welcome to #linux
+    /topic                          # show current topic
+    /topic #help                    # request topic for #help
+    /topic Welcome to the channel   # set topic on current channel
+    /topic #help Welcome!           # set topic on #help
 
 ## See Also
 
-/join, /mode
+/mode, /names

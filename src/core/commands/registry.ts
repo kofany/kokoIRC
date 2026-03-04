@@ -268,13 +268,56 @@ export const commands: Record<string, CommandDef> = {
       const s = useStore.getState()
       const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
       if (args.length >= 2) {
+        // /topic #channel new topic text
         client.setTopic(args[0], args[1])
+      } else if (args.length === 1 && args[0].startsWith("#")) {
+        // /topic #channel — request topic from server
+        client.raw(`TOPIC ${args[0]}`)
       } else if (buf && args[0]) {
+        // /topic new topic text — set on current channel
         client.setTopic(buf.name, args[0])
+      } else if (buf) {
+        // /topic — display current topic locally
+        if (buf.topic) {
+          const setBy = buf.topicSetBy ? ` %Z565f89(set by ${buf.topicSetBy})%N` : ""
+          addLocalEvent(`%Z7aa2f7Topic for ${buf.name}:%N ${buf.topic}${setBy}`)
+        } else {
+          addLocalEvent(`%Z565f89No topic set for ${buf.name}%N`)
+        }
       }
     },
     description: "Set or view channel topic",
-    usage: "/topic [channel] <text>",
+    usage: "/topic [channel] [text]",
+  },
+
+  names: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client) return
+      const s = useStore.getState()
+      const channel = args[0] || getActiveChannel()
+      if (!channel) {
+        addLocalEvent(`%Zf7768eUsage: /names [channel]%N`)
+        return
+      }
+      // Display current nick list from buffer state
+      const bufferId = s.activeBufferId?.split("/")[0]
+        ? makeBufferId(s.activeBufferId.split("/")[0], channel)
+        : null
+      const buf = bufferId ? s.buffers.get(bufferId) : null
+      if (buf && buf.users.size > 0) {
+        const nicks: string[] = []
+        for (const [, entry] of buf.users) {
+          nicks.push(`${entry.prefix}${entry.nick}`)
+        }
+        nicks.sort((a, b) => a.replace(/^[@+%~&!]/, "").localeCompare(b.replace(/^[@+%~&!]/, "")))
+        addLocalEvent(`%Z7aa2f7Users on ${channel}%N [${buf.users.size}]: ${nicks.join(" ")}`)
+      }
+      // Also request fresh NAMES from server (updates nick list panel)
+      client.raw(`NAMES ${channel}`)
+    },
+    description: "List users in a channel",
+    usage: "/names [channel]",
   },
 
   notice: {

@@ -151,6 +151,21 @@ Optionally provide a channel key for key-protected channels.</p>
 <h2>See Also</h2>
 <p>/part, /close</p>
 </div>
+<div class="command-entry" data-command="names" data-category="Channel">
+<h1>/names</h1>
+<h2>Syntax</h2>
+<pre><code>/names [channel]
+</code></pre>
+<h2>Description</h2>
+<p>Display the list of users in a channel. Without arguments, lists users in the current channel. Also sends a NAMES request to the server to refresh the nick list panel.</p>
+<p>The output shows each user with their mode prefix (@, +, etc.) and a total user count.</p>
+<h2>Examples</h2>
+<pre><code>/names              # list users in current channel
+/names #help        # list users in #help
+</code></pre>
+<h2>See Also</h2>
+<p>/who, /whois</p>
+</div>
 <div class="command-entry" data-command="part" data-category="Channel">
 <h1>/part</h1>
 <h2>Syntax</h2>
@@ -170,17 +185,22 @@ Optionally specify a channel name and part message.</p>
 <div class="command-entry" data-command="topic" data-category="Channel">
 <h1>/topic</h1>
 <h2>Syntax</h2>
-<pre><code>/topic [channel] &lt;text&gt;
+<pre><code>/topic
+/topic &lt;text&gt;
+/topic &lt;channel&gt;
+/topic &lt;channel&gt; &lt;text&gt;
 </code></pre>
 <h2>Description</h2>
-<p>Set the topic for a channel. With just text, sets the topic for the
-current channel. Specify a channel name to set a different channel&#39;s topic.</p>
+<p>View or set the channel topic.</p>
+<p>Without arguments, displays the current topic for the active channel. With only a channel name, requests the topic from the server. With text, sets the topic on the active channel (or on the specified channel).</p>
 <h2>Examples</h2>
-<pre><code>/topic Welcome to the channel!
-/topic #linux Welcome to #linux
+<pre><code>/topic                          # show current topic
+/topic #help                    # request topic for #help
+/topic Welcome to the channel   # set topic on current channel
+/topic #help Welcome!           # set topic on #help
 </code></pre>
 <h2>See Also</h2>
-<p>/join, /mode</p>
+<p>/mode, /names</p>
 </div>
 <h2 id="cat-configuration">Configuration</h2>
 <div class="command-entry" data-command="alias" data-category="Configuration">
