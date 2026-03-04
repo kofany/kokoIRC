@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Installation — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html" class="active">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Installation</h1>
+<h2>Requirements</h2>
+<ul>
+<li><strong>Bun v1.2+</strong> — kokoIRC is built on the <a href="https://bun.sh">Bun</a> runtime. Install it with <code>curl -fsSL https://bun.sh/install | bash</code> if you don&#39;t have it yet.</li>
+<li><strong>A terminal with 256-color or truecolor support</strong> — any modern terminal works: iTerm2, Alacritty, kitty, WezTerm, Windows Terminal, GNOME Terminal, etc. The default macOS Terminal.app works but truecolor themes will look better elsewhere.</li>
+</ul>
+<h2>Install from npm</h2>
+<p>The quickest way to get started:</p>
+<pre><code class="language-bash"># Global install (adds kokoirc to PATH)
+bun install -g kokoirc
+kokoirc
+</code></pre>
+<p>Or install locally in a project:</p>
+<pre><code class="language-bash"># Local install
+bun add kokoirc
+bunx kokoirc
+</code></pre>
+<h2>Install from source</h2>
+<p>If you want to hack on kokoIRC or run the latest unreleased code:</p>
+<pre><code class="language-bash">git clone https://github.com/kofany/kokoIRC.git
+cd kokoIRC
+bun install
+bun run start
+</code></pre>
+<h2>Build standalone binary</h2>
+<p>You can compile kokoIRC into a single executable that runs without Bun installed:</p>
+<pre><code class="language-bash">bun run build
+./openirc
+</code></pre>
+<p>The binary is ~68MB (includes the Bun runtime) and runs without any dependencies. Copy it to any machine with the same OS/architecture and it just works.</p>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="index.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">Home</span>
+</a>
+          <a href="first-connection.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">First Connection</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

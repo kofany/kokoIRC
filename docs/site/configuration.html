@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Configuration — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html">First Connection</a></li>
+      <li><a href="configuration.html" class="active">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>Configuration</h1>
+<h2>Config location</h2>
+<p>kokoIRC stores its configuration in <code>~/.kokoirc/config.toml</code>. This file is created automatically on first run with sensible defaults. Edit it with any text editor — it&#39;s plain TOML.</p>
+<p>The full directory layout:</p>
+<pre><code>~/.kokoirc/
+  config.toml          # main configuration
+  .env                 # credentials (passwords, SASL)
+  themes/              # custom themes
+  scripts/             # user scripts
+  logs.db              # chat logs (SQLite)
+</code></pre>
+<h2>Full annotated example</h2>
+<p>Here is a comprehensive config showing all available sections and options:</p>
+<pre><code class="language-toml">[general]
+nick = &quot;mynick&quot;
+username = &quot;mynick&quot;
+realname = &quot;kokoIRC user&quot;
+theme = &quot;default&quot;
+timestamp_format = &quot;%H:%M:%S&quot;
+flood_protection = true
+ctcp_version = &quot;kokoIRC&quot;
+
+[display]
+nick_column_width = 8
+nick_max_length = 8
+nick_alignment = &quot;right&quot;       # &quot;left&quot;, &quot;right&quot;, or &quot;center&quot;
+nick_truncation = true
+show_timestamps = true
+scrollback_lines = 2000
+
+[sidepanel.left]
+width = 20
+visible = true
+
+[sidepanel.right]
+width = 18
+visible = true
+
+[servers.libera]
+label = &quot;Libera&quot;
+address = &quot;irc.libera.chat&quot;
+port = 6697
+tls = true
+tls_verify = true
+autoconnect = true
+channels = [&quot;#kokoirc&quot;, &quot;#secret mykey&quot;]
+autosendcmd = &quot;MSG NickServ identify pass; WAIT 2000; MODE $N +i&quot;
+# nick = &quot;othernick&quot;           # per-server nick override
+# sasl_user = &quot;mynick&quot;
+# sasl_pass = &quot;hunter2&quot;
+# bind_ip = &quot;my.vhost.example.com&quot;
+# encoding = &quot;utf8&quot;
+# auto_reconnect = true
+# reconnect_delay = 30
+# reconnect_max_retries = 10
+
+[logging]
+enabled = true
+encrypt = false
+retention_days = 0             # 0 = keep forever
+exclude_types = []             # e.g. [&quot;join&quot;, &quot;part&quot;, &quot;quit&quot;]
+
+[aliases]
+wc = &quot;/close&quot;
+j = &quot;/join&quot;
+
+[scripts]
+autoload = [&quot;slap&quot;]
+# debug = true                 # enable script debug logging
+</code></pre>
+<h2>Sections explained</h2>
+<h3><code>[general]</code></h3>
+<p>Global identity and behavior. The <code>nick</code>, <code>username</code>, and <code>realname</code> are used as defaults for all servers unless overridden per-server. Set <code>theme</code> to the name of a theme file in <code>~/.kokoirc/themes/</code> (without the <code>.theme</code> extension). <code>flood_protection</code> enables automatic throttling when your client sends too many messages.</p>
+<h3><code>[display]</code></h3>
+<p>Controls how messages are rendered. <code>nick_column_width</code> sets the fixed-width column for nicks in chat view — nicks longer than this are truncated (if <code>nick_truncation = true</code>) or overflow. <code>scrollback_lines</code> is the number of messages kept in memory per buffer.</p>
+<h3><code>[sidepanel]</code></h3>
+<p>Left panel shows buffer list, right panel shows nick list. Set <code>visible = false</code> to hide a panel. Widths are in terminal columns and can also be adjusted at runtime by dragging panel edges with the mouse.</p>
+<h3><code>[servers.*]</code></h3>
+<p>Each server gets a unique identifier (the key after <code>servers.</code>). The <code>channels</code> array lists channels to auto-join on connect. Channels with keys use the format <code>&quot;#channel key&quot;</code>. See the SASL and autosendcmd sections below for authentication options.</p>
+<h3><code>[logging]</code></h3>
+<p>Chat logging to SQLite. When <code>encrypt = true</code>, messages are encrypted with AES-256-GCM (you&#39;ll be prompted for a passphrase). <code>retention_days = 0</code> keeps logs forever; set a positive number to auto-delete old entries.</p>
+<h3><code>[aliases]</code></h3>
+<p>Custom command shortcuts. The key is the alias name, the value is the command it expands to. For example, <code>wc = &quot;/close&quot;</code> lets you type <code>/wc</code> to close a buffer.</p>
+<h3><code>[scripts]</code></h3>
+<p>The <code>autoload</code> array lists script names to load on startup. Scripts live in <code>~/.kokoirc/scripts/</code> as <code>.ts</code> or <code>.js</code> files. See the <a href="scripting-getting-started.html">Scripting guide</a> for details.</p>
+<h2>Credentials</h2>
+<p>Passwords and SASL credentials should <strong>not</strong> go in <code>config.toml</code> — store them in <code>~/.kokoirc/.env</code> instead. Bun loads this file automatically.</p>
+<p>The naming convention uses the server identifier (the key in <code>[servers.*]</code>) uppercased:</p>
+<pre><code class="language-bash"># ~/.kokoirc/.env
+LIBERA_SASL_USER=mynick
+LIBERA_SASL_PASS=hunter2
+LIBERA_PASSWORD=serverpassword
+</code></pre>
+<p>For a server configured as <code>[servers.ircnet]</code>, the variables would be <code>IRCNET_SASL_USER</code>, <code>IRCNET_SASL_PASS</code>, and <code>IRCNET_PASSWORD</code>.</p>
+<h2>SASL authentication</h2>
+<p>SASL PLAIN is the recommended way to authenticate with networks that support it (Libera Chat, OFTC, etc.).</p>
+<p><strong>Option 1 — config only</strong> (simpler but less secure):</p>
+<pre><code class="language-toml">[servers.libera]
+address = &quot;irc.libera.chat&quot;
+port = 6697
+tls = true
+sasl_user = &quot;mynick&quot;
+sasl_pass = &quot;hunter2&quot;
+</code></pre>
+<p><strong>Option 2 — credentials in .env</strong> (recommended):</p>
+<pre><code class="language-toml">[servers.libera]
+address = &quot;irc.libera.chat&quot;
+port = 6697
+tls = true
+sasl_user = &quot;mynick&quot;
+# sasl_pass loaded from .env
+</code></pre>
+<pre><code class="language-bash"># ~/.kokoirc/.env
+LIBERA_SASL_PASS=hunter2
+</code></pre>
+<p>The <code>.env</code> values override anything set in <code>config.toml</code>, so you can safely keep <code>sasl_user</code> in the config for convenience while keeping the password out of it.</p>
+<h2>Autosendcmd</h2>
+<p>The <code>autosendcmd</code> field runs raw IRC commands after connecting to a server, before auto-joining channels. This is useful for NickServ identification on networks without SASL, setting user modes, or any other post-connect setup.</p>
+<p><strong>Syntax:</strong></p>
+<ul>
+<li>Commands are separated by semicolons (<code>;</code>)</li>
+<li><code>WAIT &lt;ms&gt;</code> inserts a delay in milliseconds</li>
+<li><code>$N</code> is substituted with your current nick</li>
+</ul>
+<p><strong>Examples:</strong></p>
+<pre><code class="language-toml"># Identify with NickServ, wait 2 seconds, then set mode +i
+autosendcmd = &quot;MSG NickServ identify mypassword; WAIT 2000; MODE $N +i&quot;
+
+# Request a vhost after identifying
+autosendcmd = &quot;MSG NickServ identify pass; WAIT 3000; MSG HostServ ON&quot;
+
+# Just set a user mode
+autosendcmd = &quot;MODE $N +ix&quot;
+</code></pre>
+<p>The channel auto-join happens after all autosendcmd commands (including WAITs) complete, so NickServ identification finishes before you join any channels.</p>
+<h2>Runtime changes</h2>
+<p>You don&#39;t need to restart kokoIRC to change most settings:</p>
+<ul>
+<li><p><strong><code>/set section.field value</code></strong> — change a config value at runtime. For example:</p>
+<pre><code>/set general.nick newnick
+/set display.scrollback_lines 5000
+/set aliases.wc /close
+</code></pre>
+<p>Changes made with <code>/set</code> are saved to <code>config.toml</code> immediately.</p>
+</li>
+<li><p><strong><code>/reload</code></strong> — reload theme and config from disk. Use this after editing <code>config.toml</code> or theme files in an external editor.</p>
+</li>
+</ul>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="first-connection.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">First Connection</span>
+</a>
+          <a href="commands.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">Commands</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>

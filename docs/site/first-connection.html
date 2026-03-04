@@ -1,0 +1,220 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>First Connection — kokoIRC</title>
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <!-- Mobile hamburger toggle -->
+  <button class="hamburger" aria-label="Toggle navigation">
+    <span></span>
+    <span></span>
+    <span></span>
+  </button>
+
+  <div class="page-wrapper">
+    <!-- Sidebar navigation -->
+    <aside class="sidebar">
+      <div class="sidebar-header">
+        <a href="index.html" class="brand">kokoIRC</a>
+        <span class="brand-tagline">Documentation</span>
+      </div>
+      <nav class="sidebar-nav">
+          <ul>
+    <li><a href="index.html">Home</a></li>
+  </ul>
+  <div class="nav-section">
+    <span class="nav-section-title">Getting Started</span>
+    <ul>
+      <li><a href="installation.html">Installation</a></li>
+      <li><a href="first-connection.html" class="active">First Connection</a></li>
+      <li><a href="configuration.html">Configuration</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Reference</span>
+    <ul>
+      <li><a href="commands.html">Commands</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Scripting</span>
+    <ul>
+      <li><a href="scripting-getting-started.html">Getting Started</a></li>
+      <li><a href="scripting-api.html">API Reference</a></li>
+      <li><a href="scripting-examples.html">Examples</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Customization</span>
+    <ul>
+      <li><a href="theming.html">Theming</a></li>
+      <li><a href="theming-format-strings.html">Format Strings</a></li>
+      <li><a href="logging.html">Logging & Search</a></li>
+    </ul>
+  </div>
+  <div class="nav-section">
+    <span class="nav-section-title">Project</span>
+    <ul>
+      <li><a href="roadmap.html">Roadmap</a></li>
+      <li><a href="faq.html">FAQ & Migration</a></li>
+    </ul>
+  </div>
+
+      </nav>
+      <div class="sidebar-footer">
+        Built with <a href="https://bun.sh">Bun</a>
+        &middot;
+        <a href="https://github.com/kofany/kokoIRC">GitHub</a>
+      </div>
+    </aside>
+
+    <!-- Overlay for mobile sidebar -->
+    <div class="sidebar-overlay"></div>
+
+    <!-- Main content -->
+    <div class="content-wrapper">
+      <main class="content">
+        <h1>First Connection</h1>
+<h2>First launch</h2>
+<p>When you run kokoIRC for the first time, it creates <code>~/.kokoirc/config.toml</code> with sensible defaults. You&#39;ll see the splash screen with version info and a quick-start hint.</p>
+<p>No configuration is required before connecting — you can start chatting immediately.</p>
+<h2>Connect to a server</h2>
+<p>Use the <code>/connect</code> command to connect to an IRC network:</p>
+<pre><code>/connect irc.libera.chat
+</code></pre>
+<p>This connects with TLS on port 6697 by default. To connect without TLS or on a different port, use <code>/server add</code> to set up a persistent server entry.</p>
+<p>To auto-connect on startup, add a server block to your config:</p>
+<pre><code class="language-toml">[servers.libera]
+label = &quot;Libera&quot;
+address = &quot;irc.libera.chat&quot;
+port = 6697
+tls = true
+autoconnect = true
+channels = [&quot;#kokoirc&quot;]
+</code></pre>
+<h2>Join a channel</h2>
+<pre><code>/join #kokoirc
+</code></pre>
+<p>The <code>#</code> prefix is auto-added if you omit it, so <code>/join kokoirc</code> works too. To join a channel with a key:</p>
+<pre><code>/join #secret mykey
+</code></pre>
+<h2>Basic navigation</h2>
+<p>kokoIRC uses a <strong>window/buffer</strong> model similar to irssi:</p>
+<ul>
+<li><strong>Window 1</strong> is always the status window — it shows server messages, errors, and system notices.</li>
+<li>Each channel and private query opens in its own numbered window.</li>
+<li>The <strong>left sidebar</strong> shows all open buffers with activity indicators.</li>
+<li>The <strong>right sidebar</strong> shows the nick list for the current channel.</li>
+</ul>
+<p>Switch between windows using keyboard shortcuts or by clicking buffer names in the sidebar.</p>
+<h2>Keyboard shortcuts</h2>
+<table>
+<thead>
+<tr>
+<th>Key</th>
+<th>Action</th>
+</tr>
+</thead>
+<tbody><tr>
+<td>Esc+1–9</td>
+<td>Switch to window 1–9</td>
+</tr>
+<tr>
+<td>Esc+0</td>
+<td>Switch to window 10</td>
+</tr>
+<tr>
+<td>Esc+Left/Right</td>
+<td>Previous/next window</td>
+</tr>
+<tr>
+<td>Page Up/Down</td>
+<td>Scroll chat history</td>
+</tr>
+<tr>
+<td>Tab</td>
+<td>Nick completion</td>
+</tr>
+<tr>
+<td>Ctrl+Q</td>
+<td>Quit</td>
+</tr>
+</tbody></table>
+<blockquote>
+<p><strong>Tip:</strong> Esc-number works the same as irssi&#39;s Alt-number. If your terminal passes Alt through, Alt+1–9 works too.</p>
+</blockquote>
+<h2>Mouse support</h2>
+<p>kokoIRC has full mouse support in terminals that report mouse events:</p>
+<ul>
+<li><strong>Click</strong> buffer names in the left sidebar to switch windows</li>
+<li><strong>Click</strong> nicks in the right sidebar to open a private query</li>
+<li><strong>Drag</strong> panel edges to resize the sidebars</li>
+<li><strong>Scroll</strong> the chat area with your mouse wheel</li>
+</ul>
+<p>Mouse support is enabled automatically. No configuration needed.</p>
+<h2>Getting help</h2>
+<p>The built-in help system covers every command:</p>
+<pre><code>/help              — list all available commands
+/help &lt;command&gt;    — detailed help for a specific command
+</code></pre>
+<p>For example, <code>/help server</code> shows the full syntax for adding and managing server connections. <code>/help set</code> explains how to change configuration at runtime.</p>
+
+
+        <!-- Prev / Next navigation -->
+        <nav class="page-nav">
+          <a href="installation.html" class="page-nav-link prev">
+  <span class="page-nav-label">&larr; Previous</span>
+  <span class="page-nav-title">Installation</span>
+</a>
+          <a href="configuration.html" class="page-nav-link next">
+  <span class="page-nav-label">Next &rarr;</span>
+  <span class="page-nav-title">Configuration</span>
+</a>
+        </nav>
+
+        <footer class="site-footer">
+          Built with <a href="https://bun.sh">Bun</a> &middot;
+          <a href="https://github.com/kofany/kokoIRC">GitHub</a> &middot;
+          MIT License
+        </footer>
+      </main>
+    </div>
+  </div>
+
+  <script>
+    // Mobile sidebar toggle
+    (function() {
+      const hamburger = document.querySelector('.hamburger');
+      const sidebar = document.querySelector('.sidebar');
+      const overlay = document.querySelector('.sidebar-overlay');
+
+      function toggleSidebar() {
+        hamburger.classList.toggle('active');
+        sidebar.classList.toggle('open');
+        overlay.classList.toggle('visible');
+        document.body.style.overflow = sidebar.classList.contains('open') ? 'hidden' : '';
+      }
+
+      function closeSidebar() {
+        hamburger.classList.remove('active');
+        sidebar.classList.remove('open');
+        overlay.classList.remove('visible');
+        document.body.style.overflow = '';
+      }
+
+      hamburger.addEventListener('click', toggleSidebar);
+      overlay.addEventListener('click', closeSidebar);
+
+      // Close sidebar on Escape key
+      document.addEventListener('keydown', function(e) {
+        if (e.key === 'Escape' && sidebar.classList.contains('open')) {
+          closeSidebar();
+        }
+      });
+    })();
+  </script>
+</body>
+</html>
