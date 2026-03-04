@@ -2,6 +2,25 @@
   "name": "kokoirc",
   "version": "0.2.3",
   "description": "Terminal IRC client built with OpenTUI and React",
+  "license": "MIT",
+  "author": "kofany",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/kofany/kokoIRC.git"
+  },
+  "homepage": "https://kofany.github.io/kokoIRC/",
+  "bugs": {
+    "url": "https://github.com/kofany/kokoIRC/issues"
+  },
+  "keywords": [
+    "irc",
+    "terminal",
+    "tui",
+    "client",
+    "chat",
+    "opentui",
+    "react"
+  ],
   "module": "src/index.tsx",
   "type": "module",
   "bin": {
