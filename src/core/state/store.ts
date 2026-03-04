@@ -123,11 +123,13 @@ export const useStore = create<AppState>((set, get) => ({
 
     try {
       const { writeSync } = require("node:fs")
-      const { pauseStdin, resumeStdin } = require("@/core/image-preview/stdin-guard")
+      const { flushStdin } = require("@/core/image-preview/stdin-guard")
       const inTmux = !!process.env.TMUX
 
-      pauseStdin()
+      // Disable mouse tracking + flush kernel input buffer.
+      // Do NOT call process.stdin.pause()/resume() — triggers Bun malloc crash.
       writeSync(1, "\x1b[?1003l\x1b[?1006l\x1b[?1002l\x1b[?1000l")
+      flushStdin()
 
       if (prev.protocol === "kitty") {
         // Kitty: image is on separate graphics layer — delete command removes it
@@ -166,8 +168,8 @@ export const useStore = create<AppState>((set, get) => ({
         }
       }
 
+      flushStdin()
       writeSync(1, "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h")
-      resumeStdin()
     } catch {}
 
     set({ imagePreview: null })

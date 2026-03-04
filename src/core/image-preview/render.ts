@@ -5,7 +5,7 @@ import { detectProtocol, isInsideTmux } from "./detect"
 import { isCached, writeCache } from "./cache"
 import { classifyUrl, fetchImage } from "./fetch"
 import { encodeKittyRGBA, encodeKittyPNG, encodeIterm2, encodeSixel, encodeSymbols, wrapTmuxDCS, type KittyFormat } from "./encode"
-import { pauseStdin, resumeStdin } from "./stdin-guard"
+import { flushStdin } from "./stdin-guard"
 
 // Mouse tracking escape sequences — disable during image write to prevent
 // accumulated stdin mouse events from crashing Bun's event loop (malloc double-free).
@@ -182,11 +182,13 @@ export async function preparePreview(url: string): Promise<void> {
       const interiorCol = left + 1
 
       try {
-        // Pause stdin + flush kernel buffer to prevent malloc double-free.
-        pauseStdin()
-
-        // Disable mouse tracking at terminal level
+        // Disable mouse tracking — terminal stops generating mouse events.
+        // Then flush any already-queued input from the kernel buffer.
+        // We intentionally do NOT call process.stdin.pause()/resume() — that
+        // triggers a buffer overwrite race in Bun's streams.zig (issue #8695)
+        // causing a malloc double-free crash on macOS.
         writeSync(1, MOUSE_DISABLE)
+        flushStdin()
 
         // Write strategy differs by environment:
         // - Direct (no tmux): one write of all chunks — matches erssi's fwrite()
@@ -204,14 +206,11 @@ export async function preparePreview(url: string): Promise<void> {
         }
         writeSync(1, "\x1b8")
 
-        // Re-enable mouse tracking
+        // Flush any stray input that arrived during writes, then re-enable mouse
+        flushStdin()
         writeSync(1, MOUSE_ENABLE)
       } catch {
-        // Always try to re-enable mouse tracking even on error
         try { writeSync(1, MOUSE_ENABLE) } catch {}
-      } finally {
-        // Always resume stdin — even on error or early return
-        resumeStdin()
       }
     }, 50)
   } catch (err: any) {
