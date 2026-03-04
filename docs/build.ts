@@ -20,7 +20,7 @@ const CSS_SRC = join(ROOT, "src/css/style.css");
 const JS_SRC_DIR = join(ROOT, "src/js");
 const SCREENSHOTS_DIR = join(ROOT, "screenshots");
 const COMMANDS_DIR = join(ROOT, "commands");
-const SITE_DIR = join(ROOT, "site");
+const SITE_DIR = ROOT; // Output directly to docs/ for GitHub Pages compatibility
 
 // ---------------------------------------------------------------------------
 // Site map — defines page order and sidebar sections
