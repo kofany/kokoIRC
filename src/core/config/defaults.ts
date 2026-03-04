@@ -40,6 +40,17 @@ export const DEFAULT_CONFIG: AppConfig = {
     input_color: "",
     cursor_color: "",
   },
+  image_preview: {
+    enabled: true,
+    max_width: 0,
+    max_height: 0,
+    cache_max_mb: 100,
+    cache_max_days: 7,
+    fetch_timeout: 30,
+    max_file_size: 10485760,
+    protocol: "auto",
+    kitty_format: "rgba",
+  },
   servers: {
     ircnet: {
       label: "IRCnet",

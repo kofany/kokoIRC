@@ -15,9 +15,10 @@ interface Props {
   input: React.ReactNode
   topicbar: React.ReactNode
   statusline?: React.ReactNode
+  overlay?: React.ReactNode
 }
 
-export function AppLayout({ sidebar, chat, nicklist, input, topicbar, statusline }: Props) {
+export function AppLayout({ sidebar, chat, nicklist, input, topicbar, statusline, overlay }: Props) {
   const config = useStore((s) => s.config)
   const colors = useStore((s) => s.theme?.colors)
   const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
@@ -114,6 +115,7 @@ export function AppLayout({ sidebar, chat, nicklist, input, topicbar, statusline
             onMouseDragEnd={endDrag}
           />
         )}
+        {overlay}
       </box>
 
       {/* Status line + Input area — shared background from config */}

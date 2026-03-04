@@ -63,11 +63,24 @@ export interface ScriptsConfig {
   [scriptName: string]: any  // per-script config: [scripts.my-script]
 }
 
+export interface ImagePreviewConfig {
+  enabled: boolean
+  max_width: number       // max popup width in columns (0 = auto ~60% of terminal)
+  max_height: number      // max popup height in rows (0 = auto ~60% of terminal)
+  cache_max_mb: number    // disk cache limit (default: 100)
+  cache_max_days: number  // max age before cleanup (default: 7)
+  fetch_timeout: number   // seconds (default: 30)
+  max_file_size: number   // max download bytes (default: 10MB)
+  protocol: string        // "auto" | "kitty" | "iterm2" | "sixel" | "symbols"
+  kitty_format: string    // "rgba" | "png" — kitty protocol pixel format (default: "rgba")
+}
+
 export interface AppConfig {
   general: GeneralConfig
   display: DisplayConfig
   sidepanel: SidepanelConfig
   statusbar: StatusbarConfig
+  image_preview: ImagePreviewConfig
   servers: Record<string, ServerConfig>
   aliases: Record<string, string>
   ignores: IgnoreEntry[]
