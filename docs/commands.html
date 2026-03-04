@@ -135,6 +135,20 @@ cannot be closed.</p>
 <h2>See Also</h2>
 <p>/part, /quit</p>
 </div>
+<div class="command-entry" data-command="invite" data-category="Channel">
+<h1>/invite</h1>
+<h2>Syntax</h2>
+<pre><code>/invite &lt;nick&gt; [channel]
+</code></pre>
+<h2>Description</h2>
+<p>Invite a user to join a channel. Without a channel argument, invites to the current channel. You typically need channel operator status to send invites.</p>
+<h2>Examples</h2>
+<pre><code>/invite friend              # invite to current channel
+/invite friend #secret      # invite to #secret
+</code></pre>
+<h2>See Also</h2>
+<p>/kick, /ban</p>
+</div>
 <div class="command-entry" data-command="join" data-category="Channel">
 <h1>/join</h1>
 <h2>Syntax</h2>
@@ -445,6 +459,20 @@ is treated as the target.</p>
 </code></pre>
 <h2>See Also</h2>
 <p>/quote</p>
+</div>
+<div class="command-entry" data-command="version" data-category="Info">
+<h1>/version</h1>
+<h2>Syntax</h2>
+<pre><code>/version [nick]
+</code></pre>
+<h2>Description</h2>
+<p>Without arguments, queries the IRC server version. With a nick, sends a CTCP VERSION request to that user to find out what client they are using. The reply is displayed in the active buffer.</p>
+<h2>Examples</h2>
+<pre><code>/version                # query server version
+/version someone        # query someone&#39;s client version
+</code></pre>
+<h2>See Also</h2>
+<p>/whois</p>
 </div>
 <div class="command-entry" data-command="whois" data-category="Info">
 <h1>/whois</h1>

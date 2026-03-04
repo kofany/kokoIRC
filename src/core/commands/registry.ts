@@ -320,6 +320,42 @@ export const commands: Record<string, CommandDef> = {
     usage: "/names [channel]",
   },
 
+  invite: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client || !args[0]) {
+        addLocalEvent(`%Zf7768eUsage: /invite <nick> [channel]%N`)
+        return
+      }
+      const nick = args[0]
+      const channel = args[1] || getActiveChannel()
+      if (!channel) {
+        addLocalEvent(`%Zf7768eNo active channel — specify a channel: /invite ${nick} #channel%N`)
+        return
+      }
+      client.raw(`INVITE ${nick} ${channel}`)
+    },
+    description: "Invite a user to a channel",
+    usage: "/invite <nick> [channel]",
+  },
+
+  version: {
+    handler(args, connId) {
+      const client = getClient(connId)
+      if (!client) return
+      if (args[0]) {
+        // /version <nick> — send CTCP VERSION query
+        client.ctcpRequest(args[0], "VERSION")
+      } else {
+        // /version — query server version
+        client.raw("VERSION")
+      }
+    },
+    description: "Query server or user client version",
+    usage: "/version [nick]",
+    aliases: ["ver"],
+  },
+
   notice: {
     handler(args, connId) {
       const client = getClient(connId)
