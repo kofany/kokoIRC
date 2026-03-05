@@ -45,6 +45,7 @@ interface AppState {
 
   // Message actions
   addMessage: (bufferId: string, message: Message) => void
+  addMessageWithActivity: (bufferId: string, message: Message, activity?: ActivityLevel) => void
   clearMessages: (bufferId: string) => void
 
   // Nicklist actions
@@ -66,6 +67,7 @@ interface AppState {
   batchAddNick: (entries: Array<{ bufferId: string; entry: NickEntry }>) => void
   batchUpdateNick: (entries: Array<{ bufferId: string; oldNick: string; newNick: string; prefix?: string }>) => void
   batchAddMessage: (entries: Array<{ bufferId: string; message: Message }>) => void
+  batchListEntryOps: (bufferId: string, ops: Array<{ action: "add" | "remove"; modeChar: ListModeKey; entry?: ListEntry; mask?: string }>) => void
 
   // Config/Theme
   setConfig: (config: AppConfig) => void
@@ -301,11 +303,11 @@ export const useStore = create<AppState>((set, get) => ({
   },
 
   updateBufferActivity: (id, level) => set((s) => {
+    const buf = s.buffers.get(id)
+    if (!buf || level <= buf.activity) return s
+    // Only trigger a store update when activity actually increases
     const buffers = new Map(s.buffers)
-    const buf = buffers.get(id)
-    if (buf && level > buf.activity) {
-      buffers.set(id, { ...buf, activity: level, unreadCount: buf.unreadCount + 1 })
-    }
+    buffers.set(id, { ...buf, activity: level, unreadCount: buf.unreadCount + 1 })
     return { buffers }
   }),
 
@@ -319,12 +321,60 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     return set((s) => {
-      const buffers = new Map(s.buffers)
-      const buf = buffers.get(bufferId)
+      const buf = s.buffers.get(bufferId)
       if (!buf) return s
       const maxLines = s.config?.display.scrollback_lines ?? 2000
+
+      // Inactive buffer — mutate in-place to avoid garbage (nobody is rendering these)
+      if (bufferId !== s.activeBufferId) {
+        buf.messages.push(message)
+        if (buf.messages.length > maxLines) buf.messages.splice(0, buf.messages.length - maxLines)
+        return s
+      }
+
+      // Active buffer — immutable update so ChatView re-renders
       const messages = [...buf.messages, message]
       if (messages.length > maxLines) messages.splice(0, messages.length - maxLines)
+      const buffers = new Map(s.buffers)
+      buffers.set(bufferId, { ...buf, messages })
+      return { buffers }
+    })
+  },
+
+  addMessageWithActivity: (bufferId, message, activity) => {
+    const slashIdx = bufferId.indexOf("/")
+    if (slashIdx > 0) {
+      const network = bufferId.slice(0, slashIdx)
+      const buffer = bufferId.slice(slashIdx + 1)
+      logMessage(network, buffer, message.id, message.type, message.text, message.nick ?? null, message.highlight, message.timestamp)
+    }
+
+    return set((s) => {
+      const buf = s.buffers.get(bufferId)
+      if (!buf) return s
+      const maxLines = s.config?.display.scrollback_lines ?? 2000
+
+      // Inactive buffer — mutate messages in-place to avoid garbage
+      if (bufferId !== s.activeBufferId) {
+        buf.messages.push(message)
+        if (buf.messages.length > maxLines) buf.messages.splice(0, buf.messages.length - maxLines)
+        buf.unreadCount++
+
+        // Only trigger a store update if activity level actually increases
+        // (first unread message sets the marker; subsequent messages are free)
+        if (activity != null && activity > buf.activity) {
+          buf.activity = activity
+          const buffers = new Map(s.buffers)
+          buffers.set(bufferId, { ...buf })
+          return { buffers }
+        }
+        return s // no state change — React won't re-render
+      }
+
+      // Active buffer — immutable update so ChatView re-renders
+      const messages = [...buf.messages, message]
+      if (messages.length > maxLines) messages.splice(0, messages.length - maxLines)
+      const buffers = new Map(s.buffers)
       buffers.set(bufferId, { ...buf, messages })
       return { buffers }
     })
@@ -339,9 +389,14 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   addNick: (bufferId, entry) => set((s) => {
-    const buffers = new Map(s.buffers)
-    const buf = buffers.get(bufferId)
+    const buf = s.buffers.get(bufferId)
     if (!buf) return s
+    // Inactive buffer — mutate in-place (NickList only renders for active buffer)
+    if (bufferId !== s.activeBufferId) {
+      buf.users.set(entry.nick, entry)
+      return s
+    }
+    const buffers = new Map(s.buffers)
     const users = new Map(buf.users)
     users.set(entry.nick, entry)
     buffers.set(bufferId, { ...buf, users })
@@ -349,9 +404,13 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   removeNick: (bufferId, nick) => set((s) => {
-    const buffers = new Map(s.buffers)
-    const buf = buffers.get(bufferId)
+    const buf = s.buffers.get(bufferId)
     if (!buf) return s
+    if (bufferId !== s.activeBufferId) {
+      buf.users.delete(nick)
+      return s
+    }
+    const buffers = new Map(s.buffers)
     const users = new Map(buf.users)
     users.delete(nick)
     buffers.set(bufferId, { ...buf, users })
@@ -359,15 +418,19 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   updateNick: (bufferId, oldNick, newNick, prefix) => set((s) => {
-    const buffers = new Map(s.buffers)
-    const buf = buffers.get(bufferId)
+    const buf = s.buffers.get(bufferId)
     if (!buf) return s
-    const users = new Map(buf.users)
-    const existing = users.get(oldNick)
-    if (existing) {
-      users.delete(oldNick)
-      users.set(newNick, { ...existing, nick: newNick, prefix: prefix ?? existing.prefix })
+    const existing = buf.users.get(oldNick)
+    if (!existing) return s
+    if (bufferId !== s.activeBufferId) {
+      buf.users.delete(oldNick)
+      buf.users.set(newNick, { ...existing, nick: newNick, prefix: prefix ?? existing.prefix })
+      return s
     }
+    const buffers = new Map(s.buffers)
+    const users = new Map(buf.users)
+    users.delete(oldNick)
+    users.set(newNick, { ...existing, nick: newNick, prefix: prefix ?? existing.prefix })
     buffers.set(bufferId, { ...buf, users })
     return { buffers }
   }),
@@ -424,43 +487,58 @@ export const useStore = create<AppState>((set, get) => ({
   }),
 
   batchRemoveNick: (entries) => set((s) => {
-    const buffers = new Map(s.buffers)
+    let buffers: Map<string, Buffer> | null = null
     for (const { bufferId, nick } of entries) {
-      const buf = buffers.get(bufferId)
+      const buf = (buffers ?? s.buffers).get(bufferId)
       if (!buf) continue
-      const users = new Map(buf.users)
-      users.delete(nick)
-      buffers.set(bufferId, { ...buf, users })
+      if (bufferId !== s.activeBufferId) {
+        buf.users.delete(nick)
+      } else {
+        if (!buffers) buffers = new Map(s.buffers)
+        const users = new Map(buf.users)
+        users.delete(nick)
+        buffers.set(bufferId, { ...buf, users })
+      }
     }
-    return { buffers }
+    return buffers ? { buffers } : s
   }),
 
   batchAddNick: (entries) => set((s) => {
-    const buffers = new Map(s.buffers)
+    let buffers: Map<string, Buffer> | null = null
     for (const { bufferId, entry } of entries) {
-      const buf = buffers.get(bufferId)
+      const buf = (buffers ?? s.buffers).get(bufferId)
       if (!buf) continue
-      const users = new Map(buf.users)
-      users.set(entry.nick, entry)
-      buffers.set(bufferId, { ...buf, users })
+      if (bufferId !== s.activeBufferId) {
+        buf.users.set(entry.nick, entry)
+      } else {
+        if (!buffers) buffers = new Map(s.buffers)
+        const users = new Map(buf.users)
+        users.set(entry.nick, entry)
+        buffers.set(bufferId, { ...buf, users })
+      }
     }
-    return { buffers }
+    return buffers ? { buffers } : s
   }),
 
   batchUpdateNick: (entries) => set((s) => {
-    const buffers = new Map(s.buffers)
+    let buffers: Map<string, Buffer> | null = null
     for (const { bufferId, oldNick, newNick, prefix } of entries) {
-      const buf = buffers.get(bufferId)
+      const buf = (buffers ?? s.buffers).get(bufferId)
       if (!buf) continue
-      const users = new Map(buf.users)
-      const existing = users.get(oldNick)
-      if (existing) {
+      const existing = buf.users.get(oldNick)
+      if (!existing) continue
+      if (bufferId !== s.activeBufferId) {
+        buf.users.delete(oldNick)
+        buf.users.set(newNick, { ...existing, nick: newNick, prefix: prefix ?? existing.prefix })
+      } else {
+        if (!buffers) buffers = new Map(s.buffers)
+        const users = new Map(buf.users)
         users.delete(oldNick)
         users.set(newNick, { ...existing, nick: newNick, prefix: prefix ?? existing.prefix })
+        buffers.set(bufferId, { ...buf, users })
       }
-      buffers.set(bufferId, { ...buf, users })
     }
-    return { buffers }
+    return buffers ? { buffers } : s
   }),
 
   batchAddMessage: (entries) => {
@@ -475,18 +553,48 @@ export const useStore = create<AppState>((set, get) => ({
     }
 
     return set((s) => {
-      const buffers = new Map(s.buffers)
       const maxLines = s.config?.display.scrollback_lines ?? 2000
+      let buffers: Map<string, Buffer> | null = null
+
       for (const { bufferId, message } of entries) {
-        const buf = buffers.get(bufferId)
+        const buf = (buffers ?? s.buffers).get(bufferId)
         if (!buf) continue
-        const messages = [...buf.messages, message]
-        if (messages.length > maxLines) messages.splice(0, messages.length - maxLines)
-        buffers.set(bufferId, { ...buf, messages })
+
+        if (bufferId !== s.activeBufferId) {
+          // Inactive buffer — mutate in-place
+          buf.messages.push(message)
+          if (buf.messages.length > maxLines) buf.messages.splice(0, buf.messages.length - maxLines)
+        } else {
+          // Active buffer — immutable update
+          if (!buffers) buffers = new Map(s.buffers)
+          const messages = [...buf.messages, message]
+          if (messages.length > maxLines) messages.splice(0, messages.length - maxLines)
+          buffers.set(bufferId, { ...buf, messages })
+        }
       }
-      return { buffers }
+
+      return buffers ? { buffers } : s
     })
   },
+
+  batchListEntryOps: (bufferId, ops) => set((s) => {
+    const buffers = new Map(s.buffers)
+    const buf = buffers.get(bufferId)
+    if (!buf) return s
+    const listModes = new Map(buf.listModes)
+    for (const op of ops) {
+      const existing = listModes.get(op.modeChar) ?? []
+      if (op.action === "add" && op.entry) {
+        if (!existing.some((e) => e.mask === op.entry!.mask)) {
+          listModes.set(op.modeChar, [...existing, op.entry])
+        }
+      } else if (op.action === "remove" && op.mask) {
+        listModes.set(op.modeChar, existing.filter((e) => e.mask !== op.mask))
+      }
+    }
+    buffers.set(bufferId, { ...buf, listModes })
+    return { buffers }
+  }),
 
   setConfig: (config) => set({ config }),
   setTheme: (theme) => set({ theme }),

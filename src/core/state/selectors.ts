@@ -26,8 +26,7 @@ export function useSortedBuffers(): Array<Buffer & { connectionLabel: string }> 
 const EMPTY_NICKS: NickEntry[] = []
 
 export function useSortedNicks(bufferId: string, prefixOrder: string): NickEntry[] {
-  const buffersMap = useStore((s) => s.buffers)
-  const buffer = buffersMap.get(bufferId)
+  const buffer = useStore((s) => s.buffers.get(bufferId))
   return useMemo(() => {
     if (!buffer) return EMPTY_NICKS
     return sortNicks(Array.from(buffer.users.values()), prefixOrder)

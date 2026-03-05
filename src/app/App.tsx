@@ -35,7 +35,10 @@ export function App() {
 
   useKeyboard((key) => {
     if (key.name === "q" && key.ctrl) {
-      shutdownStorage().finally(() => renderer.destroy())
+      shutdownStorage().finally(() => {
+        renderer.destroy()
+        process.exit(0)
+      })
       return
     }
 
@@ -121,7 +124,10 @@ export function App() {
   // Register shutdown handler so commands can close the app
   useEffect(() => {
     useStore.getState().setShutdownHandler(() => {
-      shutdownStorage().finally(() => renderer.destroy())
+      shutdownStorage().finally(() => {
+        renderer.destroy()
+        process.exit(0)
+      })
     })
   }, [renderer])
 
@@ -140,6 +146,14 @@ export function App() {
       setTheme(theme)
 
       await loadAllDocs()
+
+      // Run image cache cleanup (fire-and-forget)
+      const imgConfig = config.image_preview
+      if (imgConfig?.enabled) {
+        import("@/core/image-preview/cache").then(({ cleanupCache }) => {
+          cleanupCache(imgConfig.cache_max_mb ?? 100, imgConfig.cache_max_days ?? 7).catch(() => {})
+        })
+      }
     }
     init().catch((err) => console.error("[init]", err))
   }, [])

@@ -35,7 +35,6 @@ export function AppLayout({ sidebar, chat, nicklist, input, topicbar, statusline
   const [liveLeftWidth, setLiveLeftWidth] = useState(leftWidth)
   const [liveRightWidth, setLiveRightWidth] = useState(rightWidth)
   const dragRef = useRef<{ side: "left" | "right"; startX: number; startWidth: number; currentWidth: number } | null>(null)
-  const store = useStore()
 
   useEffect(() => { setLiveLeftWidth(leftWidth) }, [leftWidth])
   useEffect(() => { setLiveRightWidth(rightWidth) }, [rightWidth])
@@ -59,10 +58,11 @@ export function AppLayout({ sidebar, chat, nicklist, input, topicbar, statusline
     const d = dragRef.current
     if (!d) return
     dragRef.current = null
-    const newConfig = cloneConfig(store.config!)
+    const s = useStore.getState()
+    const newConfig = cloneConfig(s.config!)
     if (d.side === "left") newConfig.sidepanel.left.width = d.currentWidth
     else newConfig.sidepanel.right.width = d.currentWidth
-    store.setConfig(newConfig)
+    s.setConfig(newConfig)
     saveConfig(CONFIG_PATH, newConfig)
   }
 

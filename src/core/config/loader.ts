@@ -48,8 +48,6 @@ export function mergeWithDefaults(partial: Record<string, any>): AppConfig {
     aliases: partial.aliases ?? {},
     ignores: (partial.ignores as IgnoreEntry[] | undefined) ?? [],
     scripts: {
-      autoload: [],
-      debug: false,
       ...DEFAULT_CONFIG.scripts,
       ...partial.scripts,
     },

@@ -335,8 +335,10 @@ export function parseFormatString(input: string, params: string[] = []): StyledS
         continue
       }
 
-      // %| — indent marker, skip
+      // %| — indent marker: emit a zero-width span so renderers can split here
       if (code === "|") {
+        flush()
+        spans.push({ text: "", bold: false, italic: false, underline: false, dim: false, indentMarker: true })
         i++
         continue
       }

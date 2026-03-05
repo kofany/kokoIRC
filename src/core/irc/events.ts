@@ -178,6 +178,8 @@ export function bindEvents(client: Client, connectionId: string) {
       s.addMessage(bufferId, makeEventMessage(
         `%Zf7768eYou were kicked from ${event.channel} by %Za9b1d6${event.nick}%Zf7768e (${event.message || ""})%N`
       ))
+      // Auto-close the channel buffer after being kicked
+      getStore().removeBuffer(bufferId)
     } else {
       s.removeNick(bufferId, event.kicked)
       if (shouldIgnore(event.nick, event.ident, event.hostname, "KICKS", event.channel)) return
@@ -231,7 +233,13 @@ export function bindEvents(client: Client, connectionId: string) {
       ? event.message.toLowerCase().includes(conn.nick.toLowerCase())
       : false
 
-    s.addMessage(bufferId, {
+    const activityLevel = (s.activeBufferId !== bufferId && !isOwnMsg)
+      ? (!isChannel ? ActivityLevel.Mention
+        : isMention ? ActivityLevel.Mention
+        : ActivityLevel.Activity)
+      : undefined
+
+    s.addMessageWithActivity(bufferId, {
       id: nextMsgId(),
       timestamp: new Date(event.time || Date.now()),
       type: "message",
@@ -239,14 +247,7 @@ export function bindEvents(client: Client, connectionId: string) {
       nickMode: getNickMode(s.buffers, bufferId, event.nick),
       text: event.message,
       highlight: isMention,
-    })
-
-    if (s.activeBufferId !== bufferId && !isOwnMsg) {
-      const level = !isChannel ? ActivityLevel.Mention
-        : isMention ? ActivityLevel.Mention
-        : ActivityLevel.Activity
-      s.updateBufferActivity(bufferId, level)
-    }
+    }, activityLevel)
   })
 
   client.on("action", (event) => {
@@ -426,53 +427,55 @@ export function bindEvents(client: Client, connectionId: string) {
     const prefixMap = buildPrefixMap(conn?.isupport?.PREFIX)
     const modeOrder = buildModeOrder(conn?.isupport?.PREFIX)
 
-    for (const mc of event.modes) {
-      if (!mc.param) continue
-      const isAdding = mc.mode.startsWith("+")
-      const modeChar = mc.mode.replace(/[+-]/, "")
-      if (!modeOrder.includes(modeChar)) continue // not a nick prefix mode
-
-      const buf = getStore().buffers.get(bufferId)
-      const entry = buf?.users.get(mc.param)
-      if (!entry) continue
-
-      // Add or remove this specific mode char from the user's modes string
-      let modes = entry.modes ?? ""
-      if (isAdding && !modes.includes(modeChar)) {
-        modes += modeChar
-      } else if (!isAdding) {
-        modes = modes.replace(modeChar, "")
-      }
-
-      getStore().addNick(bufferId, {
-        ...entry,
-        modes,
-        prefix: getHighestPrefix(modes, modeOrder, prefixMap),
-      })
-    }
-
-    // Update channel modes (non-nick-prefix, non-list modes)
-    const listModes = getListModes(connectionId)
+    // Batch nick prefix updates (1 set() instead of N)
+    const nickUpdates: Array<{ bufferId: string; entry: NickEntry }> = []
     const buf = getStore().buffers.get(bufferId)
     if (buf) {
-      let chanModes = buf.modes ?? ""
-      const params: Record<string, string> = { ...buf.modeParams }
+      for (const mc of event.modes) {
+        if (!mc.param) continue
+        const isAdding = mc.mode.startsWith("+")
+        const modeChar = mc.mode.replace(/[+-]/, "")
+        if (!modeOrder.includes(modeChar)) continue
+
+        const entry = buf.users.get(mc.param)
+        if (!entry) continue
+
+        let modes = entry.modes ?? ""
+        if (isAdding && !modes.includes(modeChar)) {
+          modes += modeChar
+        } else if (!isAdding) {
+          modes = modes.replace(modeChar, "")
+        }
+
+        nickUpdates.push({
+          bufferId,
+          entry: { ...entry, modes, prefix: getHighestPrefix(modes, modeOrder, prefixMap) },
+        })
+      }
+    }
+    if (nickUpdates.length > 0) {
+      getStore().batchAddNick(nickUpdates)
+    }
+
+    // Batch list entry ops + update channel modes (non-nick-prefix, non-list modes)
+    const listModeSet = getListModes(connectionId)
+    const buf2 = getStore().buffers.get(bufferId)
+    if (buf2) {
+      let chanModes = buf2.modes ?? ""
+      const params: Record<string, string> = { ...buf2.modeParams }
+      const listOps: Array<{ action: "add" | "remove"; modeChar: string; entry?: { mask: string; setBy: string; setAt: number }; mask?: string }> = []
+
       for (const mc of event.modes) {
         const isAdding = mc.mode.startsWith("+")
         const modeChar = mc.mode.replace(/[+-]/, "")
-        if (modeOrder.includes(modeChar)) continue // nick prefix mode
-        if (listModes.has(modeChar)) {
-          // Track list mode changes in store
+        if (modeOrder.includes(modeChar)) continue
+        if (listModeSet.has(modeChar)) {
           if (isAdding && mc.param) {
-            getStore().addListEntry(bufferId, modeChar, {
-              mask: mc.param,
-              setBy: event.nick || "server",
-              setAt: Date.now() / 1000,
-            })
+            listOps.push({ action: "add", modeChar, entry: { mask: mc.param, setBy: event.nick || "server", setAt: Date.now() / 1000 } })
           } else if (!isAdding && mc.param) {
-            getStore().removeListEntry(bufferId, modeChar, mc.param)
+            listOps.push({ action: "remove", modeChar, mask: mc.param })
           }
-          continue // don't add to channel modes string
+          continue
         }
         if (isAdding && !chanModes.includes(modeChar)) {
           chanModes += modeChar
@@ -483,6 +486,9 @@ export function bindEvents(client: Client, connectionId: string) {
         if (isAdding && mc.param) {
           params[modeChar] = mc.param
         }
+      }
+      if (listOps.length > 0) {
+        getStore().batchListEntryOps(bufferId, listOps)
       }
       getStore().updateBufferModes(bufferId, chanModes, params)
     }
@@ -510,6 +516,7 @@ export function bindEvents(client: Client, connectionId: string) {
     clearInterval(lagPingInterval)
     destroyNetsplitState(connectionId)
     destroyAntifloodState(connectionId)
+    reopCollector.clear()
     getStore().updateConnection(connectionId, { status: "disconnected" })
     statusMsg("%Zf7768eDisconnected from server%N")
   })
@@ -592,8 +599,12 @@ export function bindEvents(client: Client, connectionId: string) {
       return
     }
     if (!event.motd) return
-    for (const line of event.motd.split("\n")) {
-      if (line.trim()) statusMsg(`%Z565f89${line}%N`)
+    const lines = event.motd.split("\n").filter((l: string) => l.trim())
+    if (lines.length > 0) {
+      getStore().batchAddMessage(lines.map((line: string) => ({
+        bufferId: statusId,
+        message: makeEventMessage(`%Z565f89${line}%N`),
+      })))
     }
   })
 
@@ -968,9 +979,10 @@ export function bindEvents(client: Client, connectionId: string) {
 
     lines.push(`%Z7aa2f7─────────────────────────────────────────────%N`)
 
-    for (const line of lines) {
-      getStore().addMessage(targetBuffer, makeEventMessage(line))
-    }
+    getStore().batchAddMessage(lines.map(line => ({
+      bufferId: targetBuffer,
+      message: makeEventMessage(line),
+    })))
   })
 
   // ─── Whowas response ──────────────────────────────────────
@@ -998,9 +1010,10 @@ export function bindEvents(client: Client, connectionId: string) {
 
     lines.push(`%Z7aa2f7─────────────────────────────────────────────%N`)
 
-    for (const line of lines) {
-      getStore().addMessage(targetBuffer, makeEventMessage(line))
-    }
+    getStore().batchAddMessage(lines.map(line => ({
+      bufferId: targetBuffer,
+      message: makeEventMessage(line),
+    })))
   })
 }
 
@@ -1011,24 +1024,21 @@ function displayNumberedList(
   channel: string,
   entries: { mask: string; setBy: string; setAt: number }[],
 ) {
-  const s = useStore.getState()
+  const msgs: Array<{ bufferId: string; message: Message }> = []
   if (entries.length === 0) {
-    s.addMessage(target, makeEventMessage(
-      `%Z565f89${channel}: ${label} is empty%N`
-    ))
-    return
+    msgs.push({ bufferId: target, message: makeEventMessage(`%Z565f89${channel}: ${label} is empty%N`) })
+  } else {
+    msgs.push({ bufferId: target, message: makeEventMessage(`%Z7aa2f7───── ${label} for ${channel} ─────%N`) })
+    for (let i = 0; i < entries.length; i++) {
+      const e = entries[i]
+      const by = e.setBy ? `  set by ${e.setBy}` : ""
+      const at = e.setAt ? ` [${formatDate(new Date(e.setAt * 1000))}]` : ""
+      msgs.push({ bufferId: target, message: makeEventMessage(
+        `%Ze0af68${(i + 1).toString().padStart(2)}.%N %Za9b1d6${e.mask}%Z565f89${by}${at}%N`
+      ) })
+    }
   }
-  s.addMessage(target, makeEventMessage(
-    `%Z7aa2f7───── ${label} for ${channel} ─────%N`
-  ))
-  for (let i = 0; i < entries.length; i++) {
-    const e = entries[i]
-    const by = e.setBy ? `  set by ${e.setBy}` : ""
-    const at = e.setAt ? ` [${formatDate(new Date(e.setAt * 1000))}]` : ""
-    s.addMessage(target, makeEventMessage(
-      `%Ze0af68${(i + 1).toString().padStart(2)}.%N %Za9b1d6${e.mask}%Z565f89${by}${at}%N`
-    ))
-  }
+  useStore.getState().batchAddMessage(msgs)
 }
 
 /** System/inline event — text may contain %Z color codes. */

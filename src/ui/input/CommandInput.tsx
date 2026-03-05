@@ -50,6 +50,10 @@ export function CommandInput() {
   const addMessage = useStore((s) => s.addMessage)
   const sb = useStatusbarColors()
 
+  // ── Multiline paste handling ──────────────────────────────────
+  const pasteQueueRef = useRef<ReturnType<typeof setTimeout>[]>([])
+  const handleSubmitRef = useRef<(v: string) => void>(() => {})
+
   const handleSubmit = useCallback((submittedValue?: string | unknown) => {
     const text = typeof submittedValue === "string" ? submittedValue : value
     const trimmed = text.trim()
@@ -87,6 +91,56 @@ export function CommandInput() {
       }
     }
   }, [value, buffer, addMessage])
+
+  // Keep ref in sync for paste queue callbacks
+  handleSubmitRef.current = handleSubmit
+
+  // Intercept multiline paste — split into lines and send with delay
+  useEffect(() => {
+    const PASTE_DELAY = 500 // ms between lines
+
+    const onPaste = (event: { text: string; preventDefault(): void }) => {
+      const text = event.text
+      if (!text) return
+
+      const lines = text.split(/\r?\n/).filter((l) => l.trim())
+      if (lines.length <= 1) return // single-line paste: let input handle normally
+
+      event.preventDefault()
+
+      // Prepend any existing input text to first pasted line
+      const currentInput = inputRef.current?.value ?? ""
+      if (currentInput.trim()) {
+        lines[0] = currentInput + lines[0]
+      }
+
+      // Clear input
+      setValue("")
+      if (inputRef.current) inputRef.current.value = ""
+
+      // Cancel any pending paste queue
+      for (const t of pasteQueueRef.current) clearTimeout(t)
+      pasteQueueRef.current = []
+
+      // Capture current submit for all queued lines
+      const submit = handleSubmitRef.current
+
+      // Send first line immediately, rest with delay to avoid excess flood
+      submit(lines[0])
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i]
+        const timer = setTimeout(() => submit(line), PASTE_DELAY * i)
+        pasteQueueRef.current.push(timer)
+      }
+    }
+
+    renderer.keyInput.on("paste", onPaste)
+    return () => {
+      renderer.keyInput.off("paste", onPaste)
+      for (const t of pasteQueueRef.current) clearTimeout(t)
+      pasteQueueRef.current = []
+    }
+  }, [renderer])
 
   const tryNickCompletion = (currentValue: string) => {
     if (!buffer) return null

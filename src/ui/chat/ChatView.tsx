@@ -1,21 +1,26 @@
 import { useRef, useEffect } from "react"
 import { useStore } from "@/core/state/store"
+import { useShallow } from "zustand/react/shallow"
 import { MessageLine } from "./MessageLine"
+import type { Message } from "@/types"
 import type { ScrollBoxRenderable } from "@opentui/core"
 
+const NO_BUFFER = { messages: [] as Message[], activeBufferId: null as string | null, currentNick: "", hasBuffer: false }
+
 export function ChatView() {
-  const buffer = useStore((s) => {
+  const data = useStore(useShallow((s) => {
     const id = s.activeBufferId
-    return id ? s.buffers.get(id) ?? null : null
-  })
-  const activeBufferId = useStore((s) => s.activeBufferId)
-  const currentNick = useStore((s) => {
-    const id = s.activeBufferId
-    if (!id) return ""
+    if (!id) return NO_BUFFER
     const buf = s.buffers.get(id)
-    if (!buf) return ""
-    return s.connections.get(buf.connectionId)?.nick ?? ""
-  })
+    if (!buf) return NO_BUFFER
+    const conn = s.connections.get(buf.connectionId)
+    return {
+      messages: buf.messages,
+      activeBufferId: id,
+      currentNick: conn?.nick ?? "",
+      hasBuffer: true,
+    }
+  }))
   const colors = useStore((s) => s.theme?.colors)
   const scrollRef = useRef<ScrollBoxRenderable>(null)
 
@@ -25,9 +30,9 @@ export function ChatView() {
       scrollRef.current.stickyScroll = true
       scrollRef.current.scrollTo(scrollRef.current.scrollHeight)
     }
-  }, [activeBufferId])
+  }, [data.activeBufferId])
 
-  if (!buffer) {
+  if (!data.hasBuffer) {
     return (
       <box flexGrow={1} justifyContent="center" alignItems="center">
         <text><span fg={colors?.fg_dim ?? "#292e42"}>No active buffer</span></text>
@@ -37,8 +42,8 @@ export function ChatView() {
 
   return (
     <scrollbox ref={scrollRef} height="100%" stickyScroll stickyStart="bottom">
-      {buffer.messages.map((msg) => (
-        <MessageLine key={msg.id} message={msg} isOwnNick={msg.nick === currentNick} />
+      {data.messages.map((msg) => (
+        <MessageLine key={msg.id} message={msg} isOwnNick={msg.nick === data.currentNick} />
       ))}
     </scrollbox>
   )

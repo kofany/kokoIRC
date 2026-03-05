@@ -1,5 +1,6 @@
+import React from "react"
 import { useStore } from "@/core/state/store"
-import { resolveAbstractions, parseFormatString, StyledText } from "@/core/theme"
+import { resolveAbstractions, parseFormatString, StyledText, renderStyledSpans } from "@/core/theme"
 import { formatTimestamp } from "@/core/irc/formatting"
 import { classifyUrl } from "@/core/image-preview/fetch"
 import type { Message } from "@/types"
@@ -12,7 +13,7 @@ interface Props {
   isOwnNick: boolean
 }
 
-export function MessageLine({ message, isOwnNick }: Props) {
+export const MessageLine = React.memo(function MessageLine({ message, isOwnNick }: Props) {
   const theme = useStore((s) => s.theme)
   const config = useStore((s) => s.config)
   const abstracts = theme?.abstracts ?? {}
@@ -45,10 +46,10 @@ export function MessageLine({ message, isOwnNick }: Props) {
     const maxLen = config?.display.nick_max_length ?? nickWidth
     const truncate = config?.display.nick_truncation ?? true
 
-    // Truncate nick if needed
+    // Truncate nick if needed — show "+" to indicate truncation
     let displayNick = nick
     if (truncate && displayNick.length > maxLen) {
-      displayNick = displayNick.slice(0, maxLen)
+      displayNick = displayNick.slice(0, maxLen - 1) + "+"
     }
 
     // Pad the combined mode+nick so alignment covers the whole column
@@ -101,9 +102,29 @@ export function MessageLine({ message, isOwnNick }: Props) {
     }
   }
 
+  // Split at %| indent marker for wrap-indented two-column layout
+  const markerIdx = allSpans.findIndex((s) => s.indentMarker)
+  if (markerIdx !== -1) {
+    // Absorb whitespace-only spans after marker into prefix (for correct alignment)
+    let bodyStart = markerIdx + 1
+    while (bodyStart < allSpans.length && allSpans[bodyStart].text.trim() === "") {
+      bodyStart++
+    }
+    const prefixSpans = [...allSpans.slice(0, markerIdx), ...allSpans.slice(markerIdx + 1, bodyStart)]
+    const bodySpans = allSpans.slice(bodyStart)
+    const prefixWidth = prefixSpans.reduce((w, s) => w + s.text.length, 0)
+
+    return (
+      <box width="100%" flexDirection="row" onMouseDown={handleClick}>
+        <text width={prefixWidth}>{renderStyledSpans(prefixSpans)}</text>
+        <text flexGrow={1}>{renderStyledSpans(bodySpans, prefixSpans.length)}</text>
+      </box>
+    )
+  }
+
   return (
     <box width="100%" onMouseDown={handleClick}>
       <StyledText spans={allSpans} />
     </box>
   )
-}
+})

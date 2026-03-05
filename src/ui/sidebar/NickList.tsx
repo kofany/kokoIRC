@@ -8,14 +8,14 @@ const DEFAULT_PREFIX_ORDER = "~&@%+"
 const EMPTY_NICKS: import("@/types").NickEntry[] = []
 
 export function NickList() {
-  const activeBufferId = useStore((s) => s.activeBufferId)
-  const buffersMap = useStore((s) => s.buffers)
-  const connectionsMap = useStore((s) => s.connections)
+  const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) ?? null : null)
+  const conn = useStore((s) => {
+    const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
+    return buf ? s.connections.get(buf.connectionId) : undefined
+  })
   const theme = useStore((s) => s.theme)
+  const rightWidth = useStore((s) => s.config?.sidepanel.right.width ?? 18)
   const colors = theme?.colors
-
-  const buffer = activeBufferId ? buffersMap.get(activeBufferId) ?? null : null
-  const conn = buffer ? connectionsMap.get(buffer.connectionId) : undefined
 
   const prefixOrder = conn?.isupport?.PREFIX
     ? extractPrefixChars(conn.isupport.PREFIX)
@@ -46,7 +46,13 @@ export function NickList() {
         const formatKey = getFormatKey(entry.prefix)
         const format = formats[formatKey] ?? " $0"
         const resolved = resolveAbstractions(format, abstracts)
-        const spans = parseFormatString(resolved, [entry.nick])
+        // Truncate nick if it exceeds sidebar width (prefix char + nick + padding)
+        const maxNickLen = rightWidth - 2 // account for prefix char + padding
+        let displayNick = entry.nick
+        if (displayNick.length > maxNickLen) {
+          displayNick = displayNick.slice(0, maxNickLen - 1) + "+"
+        }
+        const spans = parseFormatString(resolved, [displayNick])
 
         return (
           <box key={entry.nick} width="100%"
@@ -65,6 +71,7 @@ export function NickList() {
                   unreadCount: 0,
                   lastRead: new Date(),
                   users: new Map(),
+                  listModes: new Map(),
                 })
               }
               store.setActiveBuffer(queryId)

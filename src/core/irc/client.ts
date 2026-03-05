@@ -123,8 +123,18 @@ export function disconnectServer(id: string, message?: string) {
   const client = clients.get(id)
   if (client) {
     client.quit(message ?? "kokoIRC — https://github.com/kofany/kokoIRC")
+    ;(client as any).removeAllListeners()
     clients.delete(id)
+    // Force-close the TCP socket after a brief delay so the QUIT message
+    // has time to flush. Without this, the half-open socket keeps the
+    // event loop alive and prevents clean process exit.
+    setTimeout(() => {
+      try { (client as any).connection?.disposeSocket?.() } catch {}
+    }, 200)
   }
+  // Update store even if client was already gone — removeAllListeners() prevents
+  // the "close" event handler from updating status, so we must do it here.
+  useStore.getState().updateConnection(id, { status: "disconnected" })
 }
 
 export function getClient(id: string): Client | undefined {

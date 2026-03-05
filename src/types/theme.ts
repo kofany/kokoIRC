@@ -34,4 +34,5 @@ export interface StyledSpan {
   italic: boolean
   underline: boolean
   dim: boolean
+  indentMarker?: boolean
 }

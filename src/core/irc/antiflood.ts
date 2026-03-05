@@ -169,9 +169,9 @@ export function createAntiFloodMiddleware(connId: string) {
           state.msgWindow.push({ text: message, time: now })
           // Prune old entries
           const cutoff = now - DUP_WINDOW
-          while (state.msgWindow.length > 0 && state.msgWindow[0].time < cutoff) {
-            state.msgWindow.shift()
-          }
+          let pruneIdx = 0
+          while (pruneIdx < state.msgWindow.length && state.msgWindow[pruneIdx].time < cutoff) pruneIdx++
+          if (pruneIdx > 0) state.msgWindow.splice(0, pruneIdx)
 
           // Only analyze when enough messages in window
           if (state.msgWindow.length >= DUP_MIN_IN_WINDOW) {

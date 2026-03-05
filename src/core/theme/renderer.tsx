@@ -30,24 +30,26 @@ function linkify(text: string): React.ReactNode[] {
   return parts.length > 0 ? parts : [text]
 }
 
+/** Render StyledSpan[] as React elements (without wrapping <text>). */
+export function renderStyledSpans(spans: StyledSpan[], keyOffset = 0): React.ReactNode[] {
+  return spans.map((span, i) => {
+    if (span.indentMarker) return null
+    let content: any = linkify(span.text)
+    if (content.length === 1 && typeof content[0] === "string") {
+      content = content[0]
+    }
+    if (span.bold) content = <strong>{content}</strong>
+    if (span.italic) content = <em>{content}</em>
+    if (span.underline) content = <u>{content}</u>
+    if (span.dim) content = <span attributes={TextAttributes.DIM}>{content}</span>
+    return (
+      <span key={keyOffset + i} fg={span.fg} bg={span.bg}>
+        {content}
+      </span>
+    )
+  })
+}
+
 export function StyledText({ spans }: Props) {
-  return (
-    <text>
-      {spans.map((span, i) => {
-        let content: any = linkify(span.text)
-        if (content.length === 1 && typeof content[0] === "string") {
-          content = content[0]
-        }
-        if (span.bold) content = <strong>{content}</strong>
-        if (span.italic) content = <em>{content}</em>
-        if (span.underline) content = <u>{content}</u>
-        if (span.dim) content = <span attributes={TextAttributes.DIM}>{content}</span>
-        return (
-          <span key={i} fg={span.fg} bg={span.bg}>
-            {content}
-          </span>
-        )
-      })}
-    </text>
-  )
+  return <text>{renderStyledSpans(spans)}</text>
 }

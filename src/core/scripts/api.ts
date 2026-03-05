@@ -25,6 +25,7 @@ export function createScriptAPI(meta: ScriptMeta, scriptDefaults: Record<string,
 } {
   const scriptName = meta.name
   const unsubs: Array<() => void> = []
+  const storeUnsubs: Array<() => void> = []
   const timers: Array<TimerHandle> = []
   const registeredCommands: string[] = []
 
@@ -37,7 +38,11 @@ export function createScriptAPI(meta: ScriptMeta, scriptDefaults: Record<string,
     getConfig: () => useStore.getState().config,
     getConnection: (id) => useStore.getState().connections.get(id),
     getBuffer: (id) => useStore.getState().buffers.get(id),
-    subscribe: (listener) => useStore.subscribe(listener),
+    subscribe: (listener) => {
+      const unsub = useStore.subscribe(listener)
+      storeUnsubs.push(unsub)
+      return unsub
+    },
   }
 
   // ─── IRC Access ──────────────────────────────────────────
@@ -222,6 +227,10 @@ export function createScriptAPI(meta: ScriptMeta, scriptDefaults: Record<string,
     eventBus.removeAll(scriptName)
     for (const unsub of unsubs) unsub()
     unsubs.length = 0
+
+    // Remove store subscriptions
+    for (const unsub of storeUnsubs) unsub()
+    storeUnsubs.length = 0
 
     // Clear all timers
     for (const t of timers) t.clear()

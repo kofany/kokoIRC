@@ -46,6 +46,7 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
   const [visibleLines, setVisibleLines] = useState(0)
   const [showLogo, setShowLogo] = useState(false)
   const doneRef = useRef(false)
+  const finishTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
 
   const finish = () => {
     if (doneRef.current) return
@@ -63,10 +64,13 @@ export function SplashScreen({ onDone }: { onDone: () => void }) {
       if (count >= BIRD.length) {
         clearInterval(timer)
         setShowLogo(true)
-        setTimeout(finish, 2500)
+        finishTimer.current = setTimeout(finish, 2500)
       }
     }, 50)
-    return () => clearInterval(timer)
+    return () => {
+      clearInterval(timer)
+      if (finishTimer.current) clearTimeout(finishTimer.current)
+    }
   }, [])
 
   return (

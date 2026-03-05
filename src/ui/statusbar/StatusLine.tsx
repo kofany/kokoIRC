@@ -8,7 +8,10 @@ import { useStatusbarColors } from "@/ui/hooks/useStatusbarColors"
 export function StatusLine() {
   const config = useStore((s) => s.config)
   const buffer = useStore((s) => s.activeBufferId ? s.buffers.get(s.activeBufferId) : null)
-  const connections = useStore((s) => s.connections)
+  const conn = useStore((s) => {
+    const buf = s.activeBufferId ? s.buffers.get(s.activeBufferId) : null
+    return buf ? s.connections.get(buf.connectionId) ?? null : null
+  })
   const activeBufferId = useStore((s) => s.activeBufferId)
   const setActiveBuffer = useStore((s) => s.setActiveBuffer)
 
@@ -24,7 +27,6 @@ export function StatusLine() {
 
   if (!config?.statusbar.enabled) return null
 
-  const conn = buffer ? connections.get(buffer.connectionId) : null
   const items = config.statusbar.items
 
   function getItemFormat(item: StatusbarItem): string {

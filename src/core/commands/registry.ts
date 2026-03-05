@@ -379,6 +379,9 @@ export const commands: Record<string, CommandDef> = {
         const client = getClient(connId)
         if (client) {
           client.part(buf.name, args[0] ?? "Window closed")
+        } else {
+          // Already disconnected — just remove the buffer
+          s.removeBuffer(buf.id)
         }
       } else if (buf.type === BufferType.Query) {
         s.removeBuffer(buf.id)
