@@ -2,6 +2,31 @@
 
 All notable changes to kokoIRC are documented here.
 
+## [0.2.5] - 2026-03-05
+
+### Added
+- Multiline paste handling — detects newlines, sends lines with 500ms delay to avoid Excess Flood
+- Wrap indentation — long messages indent continuation lines to align with message text start (`%|` marker)
+- Nick truncation with `+` marker in chat and both sidebar panels
+- Connection label truncation in left sidebar with `+` marker
+
+### Changed
+- Memory optimization — active/inactive buffer split: in-place mutation for non-visible buffers, immutable updates only for the active buffer React renders
+- Dynamic sidebar truncation based on actual format overhead (handles variable-width refnums)
+- AppLayout no longer subscribes to entire store (was re-rendering full tree on every IRC event)
+- Stabilized ChatView/NickList/StatusLine selectors to prevent spurious re-renders
+- Batched MODE/MOTD/WHOIS/ban-list handlers (single set() instead of N)
+- Combined addMessageWithActivity (1 store update instead of 2 per privmsg)
+- Image cache cleanup now runs on startup (was dead code)
+
+### Fixed
+- `/quit` now properly exits to command line (process.exit after renderer.destroy)
+- Script store.subscribe() leak on unload
+- disconnectServer not calling removeAllListeners + disposeSocket
+- Auto-remove buffer on kick, clear reopCollector on close
+- SplashScreen setTimeout leak on unmount
+- Antiflood msgWindow splice optimization
+
 ## [0.2.4] - 2026-03-04
 
 ### Changed
