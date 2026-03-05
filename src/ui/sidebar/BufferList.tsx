@@ -23,7 +23,11 @@ export function BufferList() {
           lastConnectionId = buf.connectionId
           const format = theme?.formats.sidepanel.header ?? "%B$0%N"
           const resolved = resolveAbstractions(format, theme?.abstracts ?? {})
-          const spans = parseFormatString(resolved, [buf.connectionLabel])
+          const maxLabelLen = leftWidth - 3
+          const displayLabel = maxLabelLen > 0 && buf.connectionLabel.length > maxLabelLen
+            ? buf.connectionLabel.slice(0, maxLabelLen - 1) + "+"
+            : buf.connectionLabel
+          const spans = parseFormatString(resolved, [displayLabel])
           items.push(
             <box key={`h-${buf.connectionId}`} width="100%">
               <StyledText spans={spans} />
@@ -39,7 +43,7 @@ export function BufferList() {
         const format = theme?.formats.sidepanel[formatKey] ?? "$0. $1"
         const resolved = resolveAbstractions(format, theme?.abstracts ?? {})
         const maxLen = leftWidth - 4
-        const displayName = buf.name.length > maxLen ? buf.name.slice(0, maxLen - 1) + "\u2026" : buf.name
+        const displayName = maxLen > 0 && buf.name.length > maxLen ? buf.name.slice(0, maxLen - 1) + "+" : buf.name
         const spans = parseFormatString(resolved, [String(refNum), displayName])
 
         items.push(
