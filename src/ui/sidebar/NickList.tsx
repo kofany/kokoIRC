@@ -46,8 +46,9 @@ export function NickList() {
         const formatKey = getFormatKey(entry.prefix)
         const format = formats[formatKey] ?? " $0"
         const resolved = resolveAbstractions(format, abstracts)
-        // Available nick width: rightWidth minus borders, scrollbar, prefix char
-        const maxNickLen = rightWidth - 4
+        // Measure visible overhead of format (prefix char etc., excluding nick)
+        const formatOverhead = parseFormatString(resolved, [""]).reduce((w, s) => w + s.text.length, 0)
+        const maxNickLen = rightWidth - 3 - formatOverhead
         let displayNick = entry.nick
         if (maxNickLen > 0 && displayNick.length > maxNickLen) {
           displayNick = displayNick.slice(0, maxNickLen - 1) + "+"
