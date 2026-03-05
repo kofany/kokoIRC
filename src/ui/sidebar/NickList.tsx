@@ -46,8 +46,10 @@ export function NickList() {
         const formatKey = getFormatKey(entry.prefix)
         const format = formats[formatKey] ?? " $0"
         const resolved = resolveAbstractions(format, abstracts)
-        // Truncate nick if it exceeds sidebar width (prefix char + nick + padding)
-        const maxNickLen = rightWidth - 2 // account for prefix char + padding
+        // Compute visible chars added by the format (everything except $0)
+        const formatOverhead = resolved.replace(/\$0/, "").replace(/%[ZNn_uid|%]/g, "").replace(/%Z[0-9a-fA-F]{6}/g, "").length
+        // Available width: rightWidth minus border (1) minus format decoration
+        const maxNickLen = Math.max(4, rightWidth - 1 - formatOverhead)
         let displayNick = entry.nick
         if (displayNick.length > maxNickLen) {
           displayNick = displayNick.slice(0, maxNickLen - 1) + "+"
