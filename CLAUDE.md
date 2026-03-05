@@ -132,6 +132,34 @@ When making changes to commands, features, config options, scripting API, or the
 
 The docs site lives at https://kofany.github.io/kokoIRC/ and is served from the `docs/` directory on `main`.
 
+## Releasing a New Version
+
+Steps to release (e.g., bumping from 0.2.5 to 0.2.6):
+
+1. **Bump version** in `package.json`, `CLAUDE.md` (this file), and add a new section in `CHANGELOG.md`
+2. **Build** the binary: `bun run build`
+3. **Create tarball**: `tar czf kokoirc-VERSION-darwin-arm64.tar.gz kokoirc`
+4. **Get sha256**: `shasum -a 256 kokoirc-VERSION-darwin-arm64.tar.gz`
+5. **Commit & tag**:
+   ```bash
+   git add package.json CLAUDE.md CHANGELOG.md
+   git commit -m "chore: bump to VERSION — summary"
+   git tag vVERSION
+   git push && git push --tags
+   ```
+6. **GitHub Release**: `gh release create vVERSION kokoirc-VERSION-darwin-arm64.tar.gz --title "vVERSION" --notes "..."`
+7. **npm publish**: `npm publish --access public` (auth token in `~/.npmrc`)
+8. **Homebrew tap** — update `Formula/kokoirc.rb` in `kofany/homebrew-tap`:
+   ```bash
+   # Write updated formula to /tmp/kokoirc.rb with new url + sha256, then:
+   FORMULA_CONTENT=$(base64 < /tmp/kokoirc.rb)
+   CURRENT_SHA=$(gh api repos/kofany/homebrew-tap/contents/Formula/kokoirc.rb --jq '.sha')
+   gh api repos/kofany/homebrew-tap/contents/Formula/kokoirc.rb \
+     -X PUT -f message="Update kokoirc to VERSION" \
+     -f content="$FORMULA_CONTENT" -f sha="$CURRENT_SHA"
+   ```
+9. **Clean up**: remove the tarball from the working directory
+
 ## English Corrections
 
 If the user has made spelling or grammar mistakes in their message, include a correction section at the end of each response. The correct word should be **bold** and in magenta color:
