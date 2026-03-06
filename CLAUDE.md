@@ -7,7 +7,7 @@ alwaysApply: true
 # KokoIRC — Terminal IRC Client
 
 Terminal IRC client built with **OpenTUI** (React reconciler for TUI) and **Bun**.
-Binary name: `kokoirc` (compiled). Version 0.2.5.
+Binary name: `kokoirc` (compiled). Version 0.2.6.
 
 ## Available Skills
 

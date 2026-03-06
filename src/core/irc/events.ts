@@ -19,7 +19,8 @@ function isChannelTarget(target: string): boolean {
 function getListModes(connectionId: string): Set<string> {
   const conn = useStore.getState().connections.get(connectionId)
   const chanmodes = conn?.isupport?.CHANMODES
-  if (chanmodes) return new Set(chanmodes.split(",")[0])
+  if (Array.isArray(chanmodes) && chanmodes[0]) return new Set(chanmodes[0].split(""))
+  if (typeof chanmodes === "string") return new Set(chanmodes.split(",")[0])
   return new Set(["b", "e", "I", "R"])
 }
 

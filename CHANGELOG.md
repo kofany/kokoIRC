@@ -2,6 +2,11 @@
 
 All notable changes to kokoIRC are documented here.
 
+## [0.2.6] - 2026-03-06
+
+### Fixed
+- Channel modes not showing in statusbar — `getListModes()` crashed because kofany-irc-framework stores `CHANMODES` ISUPPORT as an array, not a comma-separated string; this silently killed the entire `channel info` (324) and `mode` event handlers, preventing modes from ever being stored
+
 ## [0.2.5] - 2026-03-05
 
 ### Added
