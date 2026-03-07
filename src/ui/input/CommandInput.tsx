@@ -103,10 +103,20 @@ export function CommandInput() {
       const text = event.text
       if (!text) return
 
-      const lines = text.split(/\r?\n/).filter((l) => l.trim())
-      if (lines.length <= 1) return // single-line paste: let input handle normally
-
+      const lines = text.split(/\r?\n/)
+      const nonEmptyLines = lines.filter((l) => l.trim())
+      
+      // Always prevent default to stop OpenTUI input from stripping newlines
       event.preventDefault()
+      
+      // Single line: insert at cursor position
+      if (nonEmptyLines.length <= 1) {
+        const currentValue = inputRef.current?.value ?? value
+        const newValue = currentValue + text
+        setValue(newValue)
+        if (inputRef.current) inputRef.current.value = newValue
+        return
+      }
 
       // Prepend any existing input text to first pasted line
       const currentInput = inputRef.current?.value ?? ""
