@@ -2,6 +2,11 @@
 
 All notable changes to kokoIRC are documented here.
 
+## [0.2.7] - 2026-03-07
+
+### Fixed
+- Pasted content losing line breaks — OpenTUI's `<input>` component strips newlines from pasted text; now always calling `preventDefault()` in paste handler to manually insert text and preserve formatting
+
 ## [0.2.6] - 2026-03-06
 
 ### Fixed

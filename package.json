@@ -1,6 +1,6 @@
 {
   "name": "kokoirc",
-  "version": "0.2.6",
+  "version": "0.2.7",
   "description": "Modern terminal IRC client with inline image preview, SASL, scripting, encrypted logging, and theming — built with OpenTUI, React, and Bun",
   "license": "MIT",
   "author": {
