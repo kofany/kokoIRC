@@ -2,6 +2,15 @@
 
 All notable changes to kokoIRC are documented here.
 
+## [0.2.8] - 2026-03-08
+
+### Fixed
+- Image preview broken in compiled binary — `sharp` (native C addon) and `sixel` (UPNG) cannot be embedded by `bun build --compile`; replaced with `jimp` (pure JS) and a custom TypeScript sixel encoder with median-cut color quantization
+- Better error reporting for image preview failures — full stack trace now shown in chat buffer instead of truncated popup
+
+### Changed
+- Removed native dependencies `sharp`, `sixel`, `@types/sharp`; added `jimp` (pure JS image processing)
+
 ## [0.2.7] - 2026-03-07
 
 ### Fixed

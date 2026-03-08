@@ -1,4 +1,4 @@
-import { image2sixel } from "sixel"
+import { encodeSixel as encodeSixelRaw } from "./sixel"
 
 const ESC = "\x1b"
 const ST = `${ESC}\\`
@@ -74,10 +74,7 @@ export function encodeIterm2(imageBuffer: Buffer, cols: number, rows: number): s
 
 /** Encode raw RGBA pixels as a raw sixel sequence */
 export function encodeSixel(rgbaBuffer: Buffer, width: number, height: number): string {
-  // Create a clean Uint8ClampedArray from a copy — Buffer.buffer is the shared Node pool
-  const copy = new Uint8ClampedArray(rgbaBuffer.length)
-  copy.set(rgbaBuffer)
-  return image2sixel(copy, width, height, 256)
+  return encodeSixelRaw(new Uint8Array(rgbaBuffer), width, height)
 }
 
 // ─── Unicode Half-Block Fallback ─────────────────────────────

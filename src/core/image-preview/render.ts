@@ -1,4 +1,4 @@
-import sharp from "sharp"
+import { Jimp } from "jimp"
 import { writeSync } from "node:fs"
 import { useStore } from "@/core/state/store"
 import { detectProtocol, isInsideTmux } from "./detect"
@@ -11,6 +11,31 @@ import { flushStdin } from "./stdin-guard"
 // accumulated stdin mouse events from crashing Bun's event loop (malloc double-free).
 const MOUSE_DISABLE = "\x1b[?1003l\x1b[?1006l\x1b[?1002l\x1b[?1000l"
 const MOUSE_ENABLE  = "\x1b[?1000h\x1b[?1002h\x1b[?1003h\x1b[?1006h"
+
+/** Resize image to fit within maxW x maxH while preserving aspect ratio (fit: "inside"). */
+function resizeContain(image: InstanceType<typeof Jimp>, maxW: number, maxH: number): InstanceType<typeof Jimp> {
+  const { width, height } = image
+  if (width <= maxW && height <= maxH) return image
+
+  const scale = Math.min(maxW / width, maxH / height)
+  const newW = Math.max(1, Math.round(width * scale))
+  const newH = Math.max(1, Math.round(height * scale))
+  return image.resize({ w: newW, h: newH })
+}
+
+/** Get raw RGBA buffer from a Jimp image. */
+function getRGBA(image: InstanceType<typeof Jimp>): { data: Buffer; width: number; height: number } {
+  return {
+    data: Buffer.from(image.bitmap.data),
+    width: image.bitmap.width,
+    height: image.bitmap.height,
+  }
+}
+
+/** Get PNG buffer from a Jimp image. */
+async function toPNG(image: InstanceType<typeof Jimp>): Promise<Buffer> {
+  return Buffer.from(await image.getBuffer("image/png"))
+}
 
 /** Main pipeline: fetch → cache → encode → write to stdout directly */
 export async function preparePreview(url: string): Promise<void> {
@@ -42,10 +67,10 @@ export async function preparePreview(url: string): Promise<void> {
     // Bail if preview was dismissed while we were fetching
     if (!useStore.getState().imagePreview) return
 
-    // 4. Load with sharp and get metadata
-    const metadata = await sharp(imagePath).metadata()
-    const imgWidth = metadata.width ?? 0
-    const imgHeight = metadata.height ?? 0
+    // 4. Load with jimp and get metadata
+    const image = await Jimp.read(imagePath)
+    const imgWidth = image.width
+    const imgHeight = image.height
 
     if (imgWidth === 0 || imgHeight === 0) {
       store.updateImagePreview({ status: "error", error: "Invalid image dimensions" })
@@ -106,49 +131,33 @@ export async function preparePreview(url: string): Promise<void> {
       }
     }
 
-    // 7. Encode based on protocol — returns raw sequences (no DCS wrapping)
+    // 7. Encode based on protocol
     let rawChunks: string[]
 
     if (protocol === "kitty") {
       if (kittyFmt === "png") {
         // PNG (f=100) — terminal decodes natively, more robust at chunk boundaries
-        const pngBuf = await sharp(imagePath)
-          .resize(pixelWidth, pixelHeight, { fit: "inside" })
-          .png()
-          .toBuffer()
+        const resized = resizeContain(image.clone(), pixelWidth, pixelHeight)
+        const pngBuf = await toPNG(resized)
         rawChunks = encodeKittyPNG(pngBuf, displayCols, displayRows)
       } else {
         // Raw RGBA (f=32) — direct pixel data, matches erssi/chafa output
-        const { data, info } = await sharp(imagePath)
-          .resize(pixelWidth, pixelHeight, { fit: "inside" })
-          .ensureAlpha()
-          .raw()
-          .toBuffer({ resolveWithObject: true })
-        const rgbaCopy = Buffer.from(data)
-        rawChunks = encodeKittyRGBA(rgbaCopy, info.width, info.height, displayCols, displayRows)
+        const resized = resizeContain(image.clone(), pixelWidth, pixelHeight)
+        const { data, width, height } = getRGBA(resized)
+        rawChunks = encodeKittyRGBA(data, width, height, displayCols, displayRows)
       }
     } else if (protocol === "iterm2") {
-      const resized = await sharp(imagePath)
-        .resize(pixelWidth, pixelHeight, { fit: "inside" })
-        .png()
-        .toBuffer()
-      rawChunks = [encodeIterm2(resized, displayCols, displayRows)]
+      const resized = resizeContain(image.clone(), pixelWidth, pixelHeight)
+      const pngBuf = await toPNG(resized)
+      rawChunks = [encodeIterm2(pngBuf, displayCols, displayRows)]
     } else if (protocol === "sixel") {
-      const { data, info } = await sharp(imagePath)
-        .resize(pixelWidth, pixelHeight, { fit: "inside" })
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true })
-      const rgbaCopy = Buffer.from(data)
-      rawChunks = [encodeSixel(rgbaCopy, info.width, info.height)]
+      const resized = resizeContain(image.clone(), pixelWidth, pixelHeight)
+      const { data, width, height } = getRGBA(resized)
+      rawChunks = [encodeSixel(data, width, height)]
     } else {
-      const { data, info } = await sharp(imagePath)
-        .resize(displayCols, displayRows * 2, { fit: "inside" })
-        .ensureAlpha()
-        .raw()
-        .toBuffer({ resolveWithObject: true })
-      const rgbaCopy = Buffer.from(data)
-      rawChunks = [encodeSymbols(rgbaCopy, info.width, info.height)]
+      const resized = resizeContain(image.clone(), displayCols, displayRows * 2)
+      const { data, width, height } = getRGBA(resized)
+      rawChunks = [encodeSymbols(data, width, height)]
     }
 
     // Bail if preview was dismissed while we were encoding
@@ -214,9 +223,22 @@ export async function preparePreview(url: string): Promise<void> {
       }
     }, 50)
   } catch (err: any) {
-    store.updateImagePreview({
-      status: "error",
-      error: err.message ?? "Unknown error",
-    })
+    const errDetail = err.stack
+      ? `${err.message}\n${err.stack.split("\n").slice(1, 4).join("\n")}`
+      : (err.message ?? "Unknown error")
+    store.updateImagePreview({ status: "error", error: err.message ?? "Unknown error" })
+
+    // Also show full error in the active buffer for debugging
+    const buf = useStore.getState().activeBufferId
+    if (buf) {
+      const { nextMsgId } = await import("@/core/utils/id")
+      useStore.getState().addMessage(buf, {
+        id: nextMsgId(),
+        timestamp: new Date(),
+        type: "event",
+        text: `%Zf7768e[img] ${errDetail}%N`,
+        highlight: false,
+      })
+    }
   }
 }

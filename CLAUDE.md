@@ -7,7 +7,7 @@ alwaysApply: true
 # KokoIRC — Terminal IRC Client
 
 Terminal IRC client built with **OpenTUI** (React reconciler for TUI) and **Bun**.
-Binary name: `kokoirc` (compiled). Version 0.2.7.
+Binary name: `kokoirc` (compiled). Version 0.2.8.
 
 ## Available Skills
 
@@ -68,22 +68,21 @@ tests/                     # bun:test test files
 | `kofany-irc-framework` | **Our fork** of irc-framework — IRC protocol client |
 | `react` 19 | UI component library (rendered to terminal via OpenTUI) |
 | `zustand` | State management (connections, buffers, messages, UI state) |
-| `sharp` | Image processing for terminal preview encoding |
-| `sixel` | Sixel graphics format encoder |
+| `jimp` | Pure JS image processing for terminal preview (no native deps) |
 | `smol-toml` | TOML parser for config and themes |
 
-## Image Preview (WIP — not working as of 2025-03-01 17:50 CET)
+## Image Preview
 
 The image preview system in `src/core/image-preview/` supports multiple terminal protocols:
-- Kitty Graphics Protocol (RGBA chunks)
+- Kitty Graphics Protocol (RGBA chunks or PNG)
 - iTerm2 Inline Images
-- Sixel format
-- ASCII art symbols fallback
+- Sixel format (pure TS encoder with median-cut quantization)
+- ASCII art symbols fallback (Unicode half-block)
 - tmux DCS passthrough wrapping
 
-Pipeline: URL detection → fetch (with imgur/imgbb scraping) → sharp resize → encode → LRU disk cache (100MB, 7-day TTL) → render in overlay.
+Pipeline: URL detection → fetch (with imgur/imgbb scraping) → jimp resize → encode → LRU disk cache (100MB, 7-day TTL) → render in overlay.
 
-**Status**: Implementation exists but is not functioning correctly. The `/Users/k/dev/subterm` and `/Users/k/dev/erssi` repos are available as references for fixing.
+All image processing uses `jimp` (pure JS) — no native dependencies, works in compiled binaries.
 
 ## Running & Building
 
